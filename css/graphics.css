@@ -1,0 +1,62 @@
+/* XHIGH settings stay visually separate from the original game UI. */
+#loading:has(#reload-button:not(.hidden)) { flex-direction: column; padding: 24px; text-align: center; line-height: 1.9; }
+#reload-button { max-width: 240px; }
+#world canvas { touch-action: none; }
+#game-hud { user-select: none; -webkit-user-select: none; }
+.settings-card .quality-guidance {
+  color: #a29b88;
+  font-size: 10px;
+  line-height: 1.8;
+  margin: 11px 0 3px;
+}
+.settings-card .setting-row select { max-width: 235px; }
+.xhigh-panel {
+  border: 1px solid #a7633b66;
+  background: linear-gradient(125deg, #4a2b1b55, #171b1511);
+  padding: 17px;
+  margin: 17px 0 8px;
+}
+.xhigh-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.xhigh-heading > span:first-child { color: #ecc292; font-size: 19px; letter-spacing: 2px; font-weight: 600; }
+.xhigh-heading small { display: block; font-size: 7px; letter-spacing: 3px; margin-top: 2px; }
+.xhigh-tag { border: 1px solid #be835844; padding: 5px 7px; font-size: 8px; letter-spacing: 1.5px; color: #c69b73; }
+.settings-card .xhigh-features { font-size: 11px; color: #c8bda5; line-height: 2; margin: 14px 0 10px; }
+.settings-card .xhigh-warning { border-top: 1px solid #b1814d2b; padding-top: 11px; font-size: 10px; color: #cc9680; line-height: 1.9; }
+.settings-card .xhigh-status { font-size: 10px; line-height: 1.9; color: #cbbb91; margin: 7px 0 0; overflow-wrap: anywhere; }
+.xhigh-consent .outline-button { border-color: #b4774e77; background: #9b59352a; margin-top: 13px; letter-spacing: 1px; font-size: 11px; }
+.xhigh-consent .text-button { width: 100%; margin-top: 2px; padding: 10px; }
+.graphics-monitor {
+  position: fixed;
+  z-index: 14;
+  top: 103px;
+  right: 4.2%;
+  width: 181px;
+  border: 1px solid #b79a6244;
+  background: #0d120de0;
+  padding: 12px 13px 0;
+  box-shadow: 0 5px 30px #0003;
+  font-family: var(--sans);
+}
+.graphics-monitor-title { display: flex; align-items: center; gap: 6px; font-size: 9px; letter-spacing: 1.5px; color: #d7b888; }
+.graphics-monitor-title i { width: 4px; height: 4px; border-radius: 50%; background: #c18a50; }
+#graphics-fps { margin-left: auto; font-size: 9px; letter-spacing: .5px; color: #9ca78b; }
+#graphics-resolution { font-size: 8px; color: #929682; margin: 8px 0 9px; letter-spacing: .7px; }
+#graphics-performance-note { font-size: 9px; line-height: 1.6; color: #d09472; margin: 0 0 8px; }
+#graphics-recover { display: flex; align-items: center; justify-content: space-between; background: none; width: 100%; border-top: 1px solid #ac94782b; padding: 9px 0; color: #b1ad94; font-size: 9px; letter-spacing: .5px; }
+#graphics-recover:hover { color: #eed5aa; }
+.graphics-monitor.performance-low { border-color: #c4775266; }
+.playing .graphics-monitor { top: 85px; right: 35px; }
+@media (max-width: 600px) {
+  .settings-card .setting-row select { max-width: 194px; font-size: 10px; padding: 8px 5px; }
+  .xhigh-panel { padding: 14px; }
+  .graphics-monitor { top: 91px; right: 6%; width: 160px; padding: 10px 11px 0; }
+  .playing .graphics-monitor { top: 86px; right: 23px; width: 145px; }
+  .graphics-monitor-title { font-size: 8px; letter-spacing: 1px; }
+  #graphics-fps { font-size: 8px; }
+  #graphics-resolution { font-size: 7px; letter-spacing: .3px; }
+  #graphics-recover { font-size: 8px; }
+}
+@media (max-height: 650px) and (min-width: 601px) {
+  .graphics-monitor { top: 73px; }
+  .playing .graphics-monitor { top: 77px; }
+}
