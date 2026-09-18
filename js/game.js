@@ -78,6 +78,18 @@
       ctx.fillStyle = '#31392f';ctx.fillRect(0,82,128,46);
       for(let x=0;x<128;x+=16){ctx.fillStyle='#495044';ctx.fillRect(x,85,2,43);ctx.fillStyle='#20291f';ctx.fillRect(x+14,85,2,43);}
       ctx.fillStyle='#626553';ctx.fillRect(0,80,128,3);
+      // Faded wallpaper motifs, torn plaster and stepped hairline cracks.
+      for (let y = 8; y < 78; y += 18) for (let x = 5; x < 128; x += 16) {
+        ctx.fillStyle = '#737564'; ctx.fillRect(x, y, 2, 7); ctx.fillRect(x - 2, y + 2, 6, 2);
+      }
+      for (let i = 0; i < 9; i++) {
+        let x = Math.floor(rand() * 60) * 2, y = Math.floor(rand() * 30) * 2;
+        ctx.fillStyle = '#888571'; ctx.fillRect(x, y, 6 + Math.floor(rand() * 5) * 2, 4 + rand() * 9);
+        for (let j = 0; j < 7; j++) {
+          ctx.fillStyle = '#303c32'; ctx.fillRect(x, y, 2, 4);
+          x += rand() > .5 ? 2 : -2; y += 3;
+        }
+      }
     } else if (type === 'floor') {
       ctx.fillStyle='#363a2f';ctx.fillRect(0,0,128,128);
       for(let y=0;y<128;y+=16){
@@ -93,10 +105,30 @@
     const tex = new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestMipmapNearestFilter;tex.wrapS=tex.wrapT=T.RepeatWrapping;
     return tex;
   }
-  const wallMat = new T.MeshLambertMaterial({map:texture('wall')});
+  // Separate linear height maps from sRGB albedo; pixel edges remain deliberate.
+  function reliefMap(albedo) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const ctx = c.getContext('2d'); ctx.drawImage(albedo.image, 0, 0);
+    const image = ctx.getImageData(0, 0, 128, 128);
+    for (let i = 0; i < image.data.length; i += 4) {
+      const value = Math.round(image.data[i] * .3 + image.data[i + 1] * .6 + image.data[i + 2] * .1);
+      image.data[i] = image.data[i + 1] = image.data[i + 2] = value;
+    }
+    ctx.putImageData(image, 0, 0);
+    const map = new T.CanvasTexture(c);
+    map.wrapS = map.wrapT = T.RepeatWrapping;
+    map.magFilter = T.NearestFilter;
+    map.repeat.copy(albedo.repeat);
+    return map;
+  }
+  const wallTex = texture('wall'), woodTex = texture('wood');
+  const wallMat = new T.MeshStandardMaterial({map:wallTex,bumpMap:reliefMap(wallTex),bumpScale:.055,roughness:.94});
   const floorTex=texture('floor'); floorTex.repeat.set(24,24);
-  const floorMat = new T.MeshStandardMaterial({map:floorTex,roughness:.86,metalness:.03});
-  const woodMat = new T.MeshLambertMaterial({map:texture('wood')});
+  const floorMat = new T.MeshStandardMaterial({map:floorTex,bumpMap:reliefMap(floorTex),bumpScale:.038,roughness:.68,metalness:.025});
+  const woodMat = new T.MeshStandardMaterial({map:woodTex,bumpMap:reliefMap(woodTex),bumpScale:.045,roughness:.79});
+  for (const material of [wallMat, floorMat, woodMat]) {
+    material.map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+  }
   const palette = {};
   function mat(color, emissive=0) {
     const key=color+':'+emissive;
@@ -171,9 +203,12 @@
     block(.26,.2,2.5,wx,2.45,z*2-1,0x554a36);
     const wl=new T.PointLight(0x789a99,7,10,2);wl.position.set(wx+(side?-1:1),2,z*2-1);scene.add(wl);
     const bx=x*2+(side?1.5:-1.5),bz=z*2+1;
-    block(1.5,.22,2.7,bx,.48,bz,0x333b2c);block(1.42,.22,2.5,bx,.68,bz,0x777660);block(1.32,.09,1.8,bx,.84,bz+.25,0x535c4e);
-    block(1.35,.17,.52,bx,.88,bz-.9,0x94907a);block(1.55,1.1,.15,bx,.7,bz-1.4,0x383a2a);
-    for(const dx of [-.62,.62])for(const dz of [-1.15,1.15])block(.12,.6,.12,bx+dx,.3,bz+dz,0x2b3125);
+    // Only the bedroom keeps a bed; other rooms now have their own furnishings.
+    if(!side && z===15){
+      block(1.5,.22,2.7,bx,.48,bz,0x333b2c);block(1.42,.22,2.5,bx,.68,bz,0x777660);block(1.32,.09,1.8,bx,.84,bz+.25,0x535c4e);
+      block(1.35,.17,.52,bx,.88,bz-.9,0x94907a);block(1.55,1.1,.15,bx,.7,bz-1.4,0x383a2a);
+      for(const dx of [-.62,.62])for(const dz of [-1.15,1.15])block(.12,.6,.12,bx+dx,.3,bz+dz,0x2b3125);
+    }
     const tx=x*2+(side?-2:2),tz=z*2-2;
     block(1.3,.14,.8,tx,1.1,tz,0x65563d);
     for(const dx of [-.55,.55])for(const dz of [-.3,.3])block(.1,1.04,.1,tx+dx,.52,tz+dz,0x403b2c);
@@ -194,23 +229,260 @@
     const x=15.5+rand()*5,z=2+rand()*32;
     block(.07+rand()*.23,.014,.08+rand()*.65,x,.005,z,rand()>.7?0x6b6550:0x252c24);
   }
+  // Environmental storytelling uses the existing voxel batches, not extra draw calls per prop.
+  const roomNames = ['仏間', '書斎', '寝室', '台所', '浴室', '人形'];
+  const decor = { rooms: roomNames.length, candles: [], lanterns: [], rain: [], webs: 0 };
+  const flameMaterial = new T.MeshBasicMaterial({color: 0xffca72});
+  function candle(x, y, z) {
+    block(.16,.035,.16,x,y,z,0x806c45);
+    block(.065,.24,.065,x,y+.13,z,0xbdad7f);
+    const flame = new T.Group(); flame.position.set(x,y+.3,z); scene.add(flame);
+    box(.045,.09,.045,0,0,0,flameMaterial,flame).castShadow=false;
+    decor.candles.push(flame);
+  }
+  // A worn runner leads back to the exit, with missing threads rather than a smooth texture.
+  for (let z=2;z<35;z+=.5) {
+    block(1.3,.009,.48,18,-.019,z,0x492e29);
+    for (const x of [17.3,18.7]) block(.08,.012,.36,x,-.014,z,0x806c45);
+    if (Math.round(z*2)%4===0) block(.22,.01,.12,18,-.009,z,0x777660);
+  }
+  roomCenters.forEach(([x,z],index)=>{
+    const side=x>18, wallX=side?34.72:1.28;
+    // Door jambs sit outside the two-metre-wide walkable openings.
+    const doorX=side?23:13;
+    for(const dz of [-1.04,1.04]) block(.3,3.2,.12,doorX,1.6,z+dz,0x383a2a);
+    block(.3,.2,2.2,doorX,3.16,z,0x65563d);
+    const sign = new T.Mesh(new T.PlaneGeometry(.32,.68),new T.MeshLambertMaterial({map:labelTexture(roomNames[index],'#333a2b','#c8b878')}));
+    sign.position.set(side?20.975:15.025,2.35,z+1.6);sign.rotation.y=side?-Math.PI/2:Math.PI/2;scene.add(sign);
+    // Pale glass slivers and torn curtain folds remain readable on low graphics.
+    for(let k=0;k<8;k++) {
+      const zz=z-2.15+k*.33;
+      block(.018,1.65,.24,wallX,2,zz,k%2?0x354c4b:0x405957);
+    }
+    for(const edge of [-1,1]) for(let k=0;k<3;k++)
+      block(.08,1.6-k*.17,.12,wallX+(side?-.12:.12),2.13+k*.06,z-1+edge*(1.04-k*.13),k%2?0x777660:0x535c4e);
+    const tx=x+(side?-2:2),tz=z-2;
+    candle(tx+.42,1.19,tz);
+    // Stacks of books, ink and folded letters on each existing desk.
+    for(let k=0;k<3;k++) block(.34,.065,.24,tx-.3,1.2+k*.065,tz,k%2?0x492e29:0x535c4e);
+    block(.09,.13,.09,tx,1.25,tz,0x151e19);
+    if(index===0){ // Buddhist altar, memorial tablets and tatami edging.
+      block(2.2,.28,.9,x, .2,z-2.1,0x383a2a);
+      block(1.8,1.6,.55,x,1.12,z-2.3,0x252c24);
+      block(1.45,1.3,.08,x,1.2,z-1.98,0x806c45);
+      for(const dx of [-.45,0,.45]) {block(.23,.6,.12,x+dx,1.05,z-1.88,0x151e19);block(.04,.36,.02,x+dx,1.09,z-1.81,0xbdad7f);}
+      candle(x-.8,.36,z-1.85);candle(x+.8,.36,z-1.85);
+      for(let k=0;k<3;k++){block(1.4,.025,2.7,x-1.5+k*1.5,.002,z+2.1,0x686853);block(.07,.03,2.7,x-2.18+k*1.5,.015,z+2.1,0x333b2c);}
+    }else if(index===1){ // Archive with irregular books and tied document boxes.
+      for(const dx of [-2,2]){
+        block(1.6,2.8,.5,x+dx,1.4,z-3.5,0x383a2a);
+        for(let shelf=0;shelf<4;shelf++){
+          block(1.65,.08,.65,x+dx,.3+shelf*.65,z-3.35,0x65563d);
+          for(let k=0;k<8;k++)block(.12,.28+rand()*.23,.26,x+dx-.65+k*.18,.59+shelf*.65,z-3.02,[0x492e29,0x535c4e,0x806c45][k%3]);
+        }
+      }
+    }else if(index===2){ // Old bedroom with a patched quilt and a travelling trunk.
+      block(1.35,.65,.75,x+2,.35,z+3,0x403b2c);
+      for(const dx of [-.43,.43])block(.07,.67,.77,x+2+dx,.36,z+3,0x806c45);
+      for(let k=0;k<5;k++)block(.19,.025,1.6,x-2.04+k*.24,.9,z+1.2,k%2?0x492e29:0x777660);
+      for(const dx of [-.3,.3])block(.22,.12,.43,x+dx,.07,z+3.2,0x333b2c);
+    }else if(index===3){ // Kitchen: iron stove, tiled backsplash, pot and crockery.
+      block(2.3,1.05,.85,x+2, .525,z-2.6,0x535c4e);
+      block(2.4,.09,.95,x+2,1.09,z-2.6,0x777660);
+      for(let k=0;k<5;k++)for(let row=0;row<3;row++)block(.42,.3,.05,x+1.05+k*.47,1.36+row*.33,z-2.99,0x94907a);
+      block(.65,.35,.55,x+1.6,1.29,z-2.6,0x252c24);block(.73,.06,.62,x+1.6,1.49,z-2.6,0x65563d);
+      block(.14,.08,.13,x+1.6,1.56,z-2.6,0x151e19);
+      for(let k=0;k<3;k++)block(.28,.07,.28,x+2.5,1.17+k*.075,z-2.6,0xbdad7f);
+    }else if(index===4){ // Bath: rimmed wooden tub, still dark water and tile floor.
+      const bx=x+2,bz=z+1;
+      for(const dx of [-.83,.83])block(.15,.85,2.4,bx+dx,.43,bz,0x65563d);
+      for(const dz of [-1.13,1.13])block(1.8,.85,.15,bx,.43,bz+dz,0x65563d);
+      block(1.6,.05,2.1,bx,.63,bz,0x202820);
+      for(let a=0;a<5;a++)for(let b=0;b<6;b++)block(.6,.016,.6,x+.65+a*.65,-.004,z-1+b*.65,(a+b)%2?0x535c4e:0x777660);
+      block(.65,.36,.55,x-1,.18,z+2.5,0x686853);
+    }else{ // Nursery: dolls on a shelf, toy cubes and a broken miniature house.
+      block(2.8,.14,.65,x,1.12,z-2.55,0x65563d);
+      for(const dx of [-.85,0,.85]){
+        block(.32,.38,.24,x+dx,1.37,z-2.55,0x492e29);
+        block(.25,.26,.25,x+dx,1.68,z-2.55,0xbdad7f);
+        block(.28,.09,.27,x+dx,1.83,z-2.57,0x151e19);
+        for(const eye of [-.065,.065])block(.035,.04,.025,x+dx+eye,1.7,z-2.412,0x151e19);
+      }
+      for(let k=0;k<9;k++)block(.18,.18,.18,x-1+rand()*2,.09,z+2+rand(),k%2?0x806c45:0x492e29);
+      block(.9,.65,.55,x+2,.33,z+3,0x777660);block(1.05,.13,.7,x+2,.73,z+3,0x492e29);
+    }
+  });
+  // Hanging paper lanterns: animate the parent pivots; voxel parts remain static.
+  for(const z of [10,22,29]){
+    const pivot=new T.Group();pivot.position.set(19.65,3.45,z);scene.add(pivot);
+    box(.025,.32,.025,0,-.16,0,0x383a2a,pivot);
+    box(.38,.56,.38,0,-.58,0,mat(0xbdad7f,0x694124),pivot);
+    for(const y of [-.3,-.45,-.7,-.87])box(.41,.025,.41,0,y,0,0x403b2c,pivot);
+    box(.1,.18,.1,0,-.96,0,0x492e29,pivot);decor.lanterns.push(pivot);
+  }
+  // Grandfather clock on the corridor wall, facing into the hall.
+  block(.38,2.65,.82,20.68,1.33,31,0x383a2a);
+  block(.025,.65,.64,20.475,2.15,31,0xbdad7f);
+  block(.04,.25,.035,20.45,2.24,31,0x151e19);block(.04,.035,.22,20.445,2.15,31.09,0x151e19);
+  block(.04,1.12,.5,20.46,1.04,31,0x151e19);
+  const pendulum=new T.Group();pendulum.position.set(20.41,1.56,31);scene.add(pendulum);
+  box(.025,.73,.025,0,-.36,0,0x806c45,pendulum);box(.07,.19,.19,0,-.76,0,0xbdad7f,pendulum);
+  // One line draw for all angular cobwebs; no transparent overdraw across the screen.
+  const webVertices=[];
+  for(const [x,z,sign] of [[15.16,28,1],[20.84,16,-1],[15.16,4,1],[1.4,3,1],[34.6,27,-1]]){
+    const point=(r,a)=>[x+Math.cos(a)*r*sign,3.48-Math.sin(a)*r,z];
+    const segment=(a,b)=>webVertices.push(...a,...b);
+    for(let spoke=0;spoke<=6;spoke++)segment(point(0,0),point(.95,spoke*Math.PI/12));
+    for(let ring=1;ring<=4;ring++)for(let spoke=0;spoke<6;spoke++)segment(point(ring*.22,spoke*Math.PI/12),point(ring*.22,(spoke+1)*Math.PI/12));
+    decor.webs++;
+  }
+  const webGeo=new T.BufferGeometry();webGeo.setAttribute('position',new T.Float32BufferAttribute(webVertices,3));
+  const webs=new T.LineSegments(webGeo,new T.LineBasicMaterial({color:0x899084,transparent:true,opacity:.32}));scene.add(webs);
+  // Rain is constrained to each window, updated in place and omitted in low mode.
+  const rainCoords=new Float32Array(roomCenters.length*22*6);
+  roomCenters.forEach(([x,z],room)=>{for(let i=0;i<22;i++){
+    const start=(room*22+i)*6,wx=x>18?34.67:1.33,zz=z-2.12+rand()*2.24;
+    rainCoords[start]=rainCoords[start+3]=wx;rainCoords[start+2]=rainCoords[start+5]=zz;
+    decor.rain.push({start,phase:rand()});
+  }});
+  const rainGeo=new T.BufferGeometry();rainGeo.setAttribute('position',new T.BufferAttribute(rainCoords,3).setUsage(T.DynamicDrawUsage));
+  const rain=new T.LineSegments(rainGeo,new T.LineBasicMaterial({color:0x99b4b5,transparent:true,opacity:.25}));rain.frustumCulled=false;scene.add(rain);
+  function updateDecor(time){
+    const motion=settings.reduced?0:time;
+    decor.candles.forEach((flame,i)=>flame.scale.y=settings.reduced?1:.92+Math.sin(motion*5+i)*.12);
+    decor.lanterns.forEach((pivot,i)=>pivot.rotation.z=settings.reduced?0:Math.sin(motion*.65+i)*.035);
+    pendulum.rotation.x=settings.reduced?0:Math.sin(motion*2.4)*.22;
+    if(rain.visible){
+      for(const drop of decor.rain){const y=2.84-((drop.phase+motion*.55)%1)*1.65;rainCoords[drop.start+1]=y;rainCoords[drop.start+4]=y+.09;}
+      rainGeo.attributes.position.needsUpdate=true;
+    }
+  }
+  // Architectural relief stays batched: door casings, exposed brick and joists.
+  // All details sit outside the navigable wall boundary; the floor plan is unchanged.
+  for (const z of [6, 18, 30]) for (const x of [15, 21]) {
+    for (const dz of [-1.05, 1.05]) {
+      block(.23, 3.38, .16, x, 1.69, z + dz, 0x4e4a36);
+      block(.32, .22, .28, x, .12, z + dz, 0x272d26);
+      block(.32, .13, .3, x, 3.24, z + dz, 0x74715a);
+    }
+    block(.3, .22, 2.4, x, 3.37, z, 0x4e4a36);
+  }
+  for (let z = 3; z < 34; z += 4) {
+    for (const x of [16.2, 18, 19.8]) block(.11, .09, 3.7, x, 3.52, z, 0x4e4a36);
+    for (const x of [15.03, 20.97]) {
+      block(.1, .17, 1.7, x, .15, z, 0x272d26);
+      block(.08, .075, 1.7, x, 1.19, z, 0x74715a);
+    }
+  }
+  for (const z of [10, 22, 33]) {
+    for (let row = 0; row < 5; row++) for (let col = 0; col < 3; col++) {
+      if ((row + col) % 4 === 0) continue;
+      block(.045, .12, .29, 15.015, 1.45 + row * .14, z + col * .32 + (row % 2) * .12, row % 2 ? 0x695445 : 0x574b3b);
+    }
+  }
+  // Caged amber lamps and hanging cables replace the bare luminous blocks.
+  for (let z = 4; z <= 32; z += 7) {
+    for (const dz of [-.13, .13]) block(.28, .44, .025, 20.59, 2.68, z + dz, 0x272d26);
+    for (const y of [2.45, 2.91]) block(.3, .055, .32, 20.61, y, z, 0x4e4a36);
+    box(.12, .25, .15, 20.57, 2.68, z, mat(0xffd7a0, 0xe0a15e));
+    block(.035, .55, .035, 20.8, 3.16, z, 0x272d26);
+  }
+  // Keep remote room props and curtains; add only the missing window lattice.
+  for (const [rx, rz] of roomCenters) {
+    const wx = rx > 18 ? 34.66 : 1.34;
+    for (let j = -2; j <= 2; j++) block(.075, 1.85, .045, wx, 2, rz - 1 + j * .43, 0x4e4a36);
+  }
   batches.forEach((items,color)=>{
     const mesh=new T.InstancedMesh(boxGeo,mat(color),items.length);
     items.forEach((p,i)=>{dummy.scale.set(p[0],p[1],p[2]);dummy.position.set(p[3],p[4],p[5]);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
   });
+
+  // Lightweight in-world atmosphere. No full-screen pass or extra shadow camera.
+  const atmosphere = new T.Group(); scene.add(atmosphere);
+  const beamMaterial = new T.ShaderMaterial({
+    transparent:true, depthWrite:false, side:T.DoubleSide, blending:T.AdditiveBlending,
+    uniforms:{ tint:{value:new T.Color(0x718f9b)} },
+    vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec2 vUv; uniform vec3 tint;
+      void main(){float edge=pow(max(0.0,sin(vUv.x*3.14159)),1.8);
+        float lattice=0.55+0.45*smoothstep(0.08,0.22,abs(sin(vUv.x*15.7079)));
+        gl_FragColor=vec4(tint,edge*lattice*pow(1.0-vUv.y,1.2)*0.075);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`
+  });
+  const moonPools = new T.InstancedMesh(new T.PlaneGeometry(3.9,.3),
+    new T.MeshBasicMaterial({color:0x8caab5,transparent:true,opacity:.055,depthWrite:false}), roomCenters.length * 4);
+  const poolTransform = new T.Object3D(); poolTransform.rotation.x = -Math.PI/2;
+  let poolIndex = 0;
+  for (const [rx, rz] of roomCenters) {
+    const right = rx > 18, wx = right ? 34.64 : 1.36, endX = wx + (right ? -5.6 : 5.6);
+    const geometry = new T.BufferGeometry();
+    geometry.setAttribute('position', new T.Float32BufferAttribute([
+      wx,2.85,rz-2.1, wx,2.85,rz+.1, endX,.04,rz+1.8, endX,.04,rz-1.8
+    ],3));
+    geometry.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,1,1,0,1],2));
+    geometry.setIndex([0,1,2,0,2,3]);
+    atmosphere.add(new T.Mesh(geometry,beamMaterial));
+    // A broken-up patch of moonlight, entirely inside each room.
+    for (let j = 0; j < 4; j++) {
+      poolTransform.position.set(wx+(right?-2.6:2.6),-.018,rz-1.5+j*.52);
+      poolTransform.updateMatrix(); moonPools.setMatrixAt(poolIndex++,poolTransform.matrix);
+    }
+  }
+  atmosphere.add(moonPools);
+  const mistMaterial = new T.ShaderMaterial({
+    transparent:true,depthWrite:false,side:T.DoubleSide,
+    uniforms:{time:{value:0}},
+    vertexShader:`varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec2 vUv; uniform float time;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+1.),f.x),f.y);}
+      void main(){float edge=sin(vUv.x*3.14159)*sin(vUv.y*3.14159);
+        float n=noise(vUv*vec2(6.,3.)+vec2(time*.025,time*.012));
+        gl_FragColor=vec4(vec3(.22,.29,.28),edge*edge*smoothstep(.25,.8,n)*.12);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`
+  });
+  const mistGeometry = new T.PlaneGeometry(5.7,8);
+  for (const z of [6,14,22,30]) {
+    const mist = new T.Mesh(mistGeometry,mistMaterial);
+    mist.rotation.x = -Math.PI/2; mist.position.set(18,.22,z); atmosphere.add(mist);
+  }
 
   // A fully articulated voxel grandmother: articulated shoulders, elbows, hips,
   // segmented skirt, hair locks, jaw and independently shivering fingers.
   function createGrandmother(){
     const root=new T.Group();scene.add(root);
     const rig=new T.Group();root.add(rig);
-    const dress=mat(0x666c57),dressDark=mat(0x444e3e),skin=mat(0xa29b7b),skinDark=mat(0x77785b),hair=mat(0x9c9d88);
+    const clothCanvas = document.createElement('canvas'); clothCanvas.width = clothCanvas.height = 64;
+    const ctx = clothCanvas.getContext('2d'); ctx.fillStyle = '#889080'; ctx.fillRect(0,0,64,64);
+    for (let y=0;y<64;y+=2) for(let x=0;x<64;x+=2) {
+      ctx.fillStyle = (x+y)%4 ? '#747e6d' : '#9ba18c'; ctx.fillRect(x,y,1,2);
+    }
+    for(let y=6;y<64;y+=16) for(let x=6;x<64;x+=16) {
+      ctx.fillStyle='#b4b29b';ctx.fillRect(x,y,2,6);ctx.fillRect(x-2,y+2,6,2);
+      ctx.fillStyle='#646e5d';ctx.fillRect(x+2,y+5,2,3);
+    }
+    const cloth = new T.CanvasTexture(clothCanvas); cloth.colorSpace=T.SRGBColorSpace; cloth.magFilter=T.NearestFilter;
+    const dress=new T.MeshStandardMaterial({color:0x899078,map:cloth,roughness:1});
+    const dressDark=new T.MeshStandardMaterial({color:0x5c6956,map:cloth,roughness:1});
+    const skin=new T.MeshStandardMaterial({color:0xb3a88b,roughness:.88});
+    const skinDark=new T.MeshStandardMaterial({color:0x807e64,roughness:.95});
+    const hair=mat(0xaaa994);
     const torso=new T.Group();torso.position.y=1.35;rig.add(torso);
     box(.6,.68,.36,0,.25,0,dress,torso);box(.72,.2,.35,0,.51,0,dressDark,torso);
     box(.31,.12,.42,0,.54,.04,0x92917b,torso);
     // Uneven apron and stitching.
     box(.42,.6,.035,0,.03,.22,0x9a9881,torso);
     for(let i=0;i<7;i++)box(.04,.055,.045,(i%2?.11:-.11),.31-i*.083,.244,0x767b62,torso);
+    box(.22,.19,.022,.065,-.08,.245,0x777b63,torso);
+    box(.24,.025,.028,.065,.02,.25,0xb1ac91,torso);
+    box(.57,.06,.055,0,.38,.2,0xb1ac91,torso);
+    for (let i=0;i<3;i++) box(.034,.034,.028,0,.48-i*.11,.225,0x343c32,torso);
+    for (let i=0;i<8;i++) box(.022,.06+(i%3)*.025,.022,-.19+i*.054,-.28,.243,0x777b63,torso);
     const skirt=new T.Group();rig.add(skirt);
     const skirtPieces=[];
     for(let j=0;j<4;j++)for(let i=0;i<6;i++){
@@ -235,6 +507,19 @@
       box(.035,.18,.03,s*.203,.27,.279,0x696c50,headPivot);
       for(let j=0;j<3;j++)box(.06,.15+rand()*.12,.06,s*(.23+rand()*.04),.05+j*.1,-.06,hair,headPivot);
     }
+    // Stacked silver locks, forehead creases, clouded pupils and hollow cheeks.
+    for (let i=0;i<9;i++) {
+      box(.038,.048,.39,-.22+i*.055,.663-(i%3)*.008,0,i%2?0x777f70:hair,headPivot);
+    }
+    for (let i=0;i<3;i++) box(.27-i*.04,.012,.012,0,.48+i*.038,.264,skinDark,headPivot);
+    for (const s of [-1,1]) {
+      box(.025,.027,.012,s*.132,.372,.303,0xf1ead1,headPivot);
+      box(.105,.018,.022,s*.14,.293,.282,skinDark,headPivot);
+      box(.07,.017,.018,s*.175,.267,.287,skinDark,headPivot);
+      box(.025,.055,.025,s*.081,.154,.293,skinDark,headPivot);
+      box(.025,.022,.023,s*.032,.19,.385,0x343c32,headPivot);
+      for(let j=0;j<4;j++) box(.025,.13+j*.025,.027,s*(.264+(j%2)*.028),.32-j*.075,.17,hair,headPivot);
+    }
     box(.088,.2,.12,0,.29,.306,skinDark,headPivot);
     box(.13,.07,.06,0,.2,.35,skin,headPivot);
     const jaw=new T.Group();jaw.position.set(0,.13,.22);headPivot.add(jaw);
@@ -248,7 +533,12 @@
       const elbow=new T.Group();elbow.position.y=-.41;shoulder.add(elbow);
       box(.14,.44,.16,0,-.2,0,skinDark,elbow);
       box(.17,.15,.13,0,-.46,.02,skin,elbow);
-      for(let i=0;i<4;i++)box(.026,.16+(i%2)*.04,.038,-.065+i*.042,-.59,.035,skinDark,elbow);
+      box(.18,.07,.19,0,-.035,0,dress,elbow);
+      for(let i=0;i<4;i++) {
+        box(.026,.16+(i%2)*.04,.038,-.065+i*.042,-.59,.035,skinDark,elbow);
+        box(.021,.045,.012,-.065+i*.042,-.65-(i%2)*.02,.058,0xc4b99a,elbow);
+        box(.032,.032,.018,-.065+i*.042,-.49,.09,skinDark,elbow);
+      }
       arms.push({shoulder,elbow});
     }
     const legs=[];
@@ -256,7 +546,12 @@
       const leg=new T.Group();leg.position.set(s*.2,.49,0);rig.add(leg);
       box(.14,.36,.17,0,-.15,0,skinDark,leg);box(.19,.12,.33,0,-.41,.075,0x30362b,leg);legs.push(leg);
     }
-    const shadow=new T.Mesh(new T.PlaneGeometry(1.3,1.3),new T.MeshBasicMaterial({color:0x050904,transparent:true,opacity:.32,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.01;root.add(shadow);
+    const shadowCanvas=document.createElement('canvas');shadowCanvas.width=shadowCanvas.height=64;
+    const shadowContext=shadowCanvas.getContext('2d');
+    const gradient=shadowContext.createRadialGradient(32,32,3,32,32,32);
+    gradient.addColorStop(0,'rgba(0,0,0,.65)');gradient.addColorStop(.45,'rgba(0,0,0,.3)');gradient.addColorStop(1,'rgba(0,0,0,0)');
+    shadowContext.fillStyle=gradient;shadowContext.fillRect(0,0,64,64);
+    const shadow=new T.Mesh(new T.PlaneGeometry(1.5,1.2),new T.MeshBasicMaterial({map:new T.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.012;root.add(shadow);
     return {root,rig,torso,headPivot,jaw,arms,legs,skirtPieces};
   }
   const granny=createGrandmother();
@@ -275,25 +570,79 @@
   const flashlight=new T.SpotLight(0xf2e2b9,65,25,Math.PI*.255,.68,1.6);
   flashlight.castShadow=true;flashlight.shadow.mapSize.set(1024,1024);flashlight.shadow.bias=-.0008;flashlight.shadow.normalBias=.04;
   flashlight.shadow.camera.near=.2;flashlight.shadow.camera.far=26;
+  // Project a softly worn reflector pattern, rather than a perfectly uniform cone.
+  const torchCanvas = document.createElement('canvas'); torchCanvas.width = torchCanvas.height = 128;
+  const torchContext = torchCanvas.getContext('2d');
+  const torchPixels = torchContext.createImageData(128,128);
+  for (let y=0;y<128;y++) for (let x=0;x<128;x++) {
+    const dx=(x-63.5)/63.5,dy=(y-63.5)/63.5,r=Math.hypot(dx,dy);
+    const core=Math.exp(-r*r*8),ring=Math.exp(-Math.pow((r-.57)*9,2));
+    const value=Math.round(255*Math.min(1,.68+core*.29+ring*.055));
+    const i=(y*128+x)*4;
+    torchPixels.data[i]=torchPixels.data[i+1]=torchPixels.data[i+2]=value;torchPixels.data[i+3]=255;
+  }
+  torchContext.putImageData(torchPixels,0,0);
+  const torchPattern = new T.CanvasTexture(torchCanvas);
   scene.add(flashlight);scene.add(flashlight.target);
   const fillLight=new T.PointLight(0xb5c5b1,2.5,4,1.8);scene.add(fillLight);
   const viewRig=new T.Group();camera.add(viewRig);scene.add(camera);
   box(.12,.14,.3,.31,-.32,-.47,0x202a23,viewRig);
   box(.13,.17,.16,.31,-.31,-.64,0x53594a,viewRig);
   box(.075,.1,.02,.31,-.31,-.729,mat(0xd4cfa5,0xc6b772),viewRig);
-  box(.13,.12,.2,.31,-.41,-.4,0x82775b,viewRig);viewRig.visible=false;
+  box(.13,.12,.2,.31,-.41,-.4,0x82775b,viewRig);
+  const torchMetal = new T.MeshStandardMaterial({color:0x697267,roughness:.38,metalness:.7});
+  for (let i=0;i<5;i++) box(.132,.15,.016,.31,-.32,-.39-i*.037,torchMetal,viewRig);
+  box(.156,.192,.026,.31,-.31,-.704,torchMetal,viewRig);
+  box(.035,.012,.052,.31,-.241,-.48,0xa9a68c,viewRig);
+  box(.155,.14,.16,.31,-.42,-.28,0x414c42,viewRig);
+  for(let i=0;i<3;i++)box(.025,.04,.1,.256+i*.035,-.355,-.44,0xa69877,viewRig);
+  viewRig.visible=false;
   // Sparse dust catches the flashlight, using a single point-cloud draw.
   const dustGeo=new T.BufferGeometry(),dustCoords=new Float32Array(300*3);
   for(let i=0;i<300;i++){dustCoords[i*3]=14.8+rand()*6.4;dustCoords[i*3+1]=.2+rand()*3.1;dustCoords[i*3+2]=rand()*35;}
   dustGeo.setAttribute('position',new T.BufferAttribute(dustCoords,3));
   const dust=new T.Points(dustGeo,new T.PointsMaterial({color:0xbdbd9c,size:.018,transparent:true,opacity:.27,depthWrite:false}));scene.add(dust);
+  // Depth-tested light halos share one tiny texture; walls still occlude them.
+  const haloCanvas=document.createElement('canvas');haloCanvas.width=haloCanvas.height=64;
+  const haloContext=haloCanvas.getContext('2d');
+  const haloGradient=haloContext.createRadialGradient(32,32,0,32,32,32);
+  haloGradient.addColorStop(0,'rgba(255,244,208,.8)');
+  haloGradient.addColorStop(.18,'rgba(255,221,173,.35)');
+  haloGradient.addColorStop(.5,'rgba(255,210,150,.08)');haloGradient.addColorStop(1,'rgba(255,210,150,0)');
+  haloContext.fillStyle=haloGradient;haloContext.fillRect(0,0,64,64);
+  const haloTexture=new T.CanvasTexture(haloCanvas);haloTexture.colorSpace=T.SRGBColorSpace;
+  const haloMaterial=new T.SpriteMaterial({map:haloTexture,color:0xffc888,transparent:true,opacity:.3,
+    blending:T.AdditiveBlending,depthTest:true,depthWrite:false});
+  const lightHalos=[];
+  function addHalo(parent,x,y,z,width,height=width) {
+    const halo=new T.Sprite(haloMaterial);halo.position.set(x,y,z);halo.scale.set(width,height,1);
+    parent.add(halo);lightHalos.push(halo);return halo;
+  }
+  fixtureLights.forEach(light=>addHalo(scene,20.47,light.position.y,light.position.z,.95));
+  decor.candles.forEach(flame=>addHalo(flame,0,.015,0,.38));
+  decor.lanterns.forEach(lantern=>addHalo(lantern,0,-.58,0,.95,1.12));
   const talismanTex=labelTexture('鎮魂符','#c8b878','#682d21');
+  const paperContext=talismanTex.image.getContext('2d');
+  paperContext.strokeStyle='#855332';paperContext.lineWidth=2;
+  paperContext.strokeRect(8,8,112,240);
+  paperContext.fillStyle='#873a2a';paperContext.fillRect(50,207,28,28);
+  paperContext.strokeStyle='#c8b878';paperContext.strokeRect(55,212,18,18);
+  for(let i=0;i<42;i++) {
+    paperContext.fillStyle=i%3?'rgba(76,54,29,.14)':'rgba(240,217,152,.3)';
+    paperContext.fillRect((i*37)%120+4,(i*53)%248+4,2,4+i%7);
+  }
+  talismanTex.needsUpdate=true;
   const items=[];
   for(const p of [[4,6],[30,6],[30,30]]){
     const group=new T.Group();group.position.set(p[0],1.25,p[1]);scene.add(group);
     const paper=new T.Mesh(new T.BoxGeometry(.28,.65,.028),new T.MeshLambertMaterial({map:talismanTex,emissive:0xb39240,emissiveIntensity:.5}));group.add(paper);
     const glow=new T.PointLight(0xfbd28b,7,5,2);glow.position.y=.2;group.add(glow);
-    items.push({group,baseY:1.25,collected:false});
+    const aura=addHalo(group,0,0,0,.78,1.15);
+    // A thread loop and torn lower corners retain the square voxel silhouette.
+    box(.022,.15,.025,0,.4,0,0x77603c,group);
+    box(.055,.09,.032,-.095,-.35,0,0xa99766,group);
+    box(.045,.055,.032,.08,-.333,0,0xb9a570,group);
+    items.push({group,aura,baseY:1.25,collected:false});
   }
 
   const navigation = new Core.Navigation(grid, CELL);
@@ -432,7 +781,7 @@
   function unlock(){if(document.pointerLockElement)document.exitPointerLock();}
   function startGame(){
     if (contextLost) return;
-    document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden')); modalDepth = 0;
+    document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden')); modalDepth = 0; modalFocus.clear();
     $('end-screen').classList.add('hidden');$('landing').classList.add('hidden');$('game-hud').classList.remove('hidden');document.body.classList.add('playing');
     state='playing';elapsed=0;collected=0;stamina=100;chaseTime=0;walkPhase=0;pathClock=0;path=[];lastEnemyFoot=0;lastFoot=0;threat=0;resetInput();
     targetItem = null; exhausted = false; accumulator = 0; hudClock = 0;
@@ -440,6 +789,7 @@
     $('elapsed-time').textContent = '00:00'; $('stamina-fill').style.width = '100%';
     $('interaction-prompt').classList.add('hidden'); viewRig.position.set(0, 0, 0); invalidateScene();
     player.set(18,1.62,32.7);yaw=0;pitch=0;camera.position.copy(player);camera.rotation.set(0,0,0);
+    flashlight.target.position.set(player.x,player.y,player.z-10);
     granny.root.position.set(18,0,6);granny.root.rotation.set(0,0,0);
     items.forEach(i=>{i.collected=false;i.group.visible=true;});exitSeals.forEach(s=>s.visible=true);updateObjective();viewRig.visible=true;
     $('danger-vignette').style.opacity=0;$('flash').style.opacity=0;$('touch-look-hint').style.opacity=1;
@@ -450,6 +800,7 @@
     $('key-count').textContent=`${collected} / 3`;
     for(let i=1;i<=3;i++)$('key-'+i).classList.toggle('collected',i<=collected);
     $('objective-text').textContent=collected===3?'玄関へ戻り、脱出する':'3つの護符を探す';
+    exitGlow.color.setHex(collected===3?0xaed4b1:0xffc585);exitGlow.intensity=collected===3?18:10;
   }
   function interact(){
     if(state!=='playing')return;
@@ -473,7 +824,7 @@
     state = 'playing'; closeModal('pause-modal'); resetInput();
     accumulator = 0; previousTime = performance.now(); invalidateScene(); ensureAudio(); pointerLock();
   }
-  function goHome(){state='intro';modalDepth=0;targetItem=null;accumulator=0;invalidateScene();resetInput();unlock();viewRig.visible=false;document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden'));$('end-screen').classList.add('hidden');$('game-hud').classList.add('hidden');$('landing').classList.remove('hidden');document.body.classList.remove('playing');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;items.forEach(i=>i.group.visible=true);exitSeals.forEach(s=>s.visible=true);granny.root.position.set(18.6,0,25.6);}
+  function goHome(){state='intro';modalDepth=0;targetItem=null;accumulator=0;invalidateScene();resetInput();unlock();viewRig.visible=false;document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden'));$('end-screen').classList.add('hidden');$('game-hud').classList.add('hidden');$('landing').classList.remove('hidden');document.body.classList.remove('playing');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;items.forEach(i=>i.group.visible=true);exitSeals.forEach(s=>s.visible=true);granny.root.position.set(18.6,0,25.6);exitGlow.color.setHex(0xffc585);exitGlow.intensity=10;modalFocus.clear();}
   function endGame(won){
     state=won?'escaped':'dead';invalidateScene();unlock();resetInput();viewRig.visible=false;$('game-hud').classList.add('hidden');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;
     $('end-screen').classList.remove('hidden');$('end-screen').classList.toggle('escaped',won);
@@ -504,11 +855,14 @@
     camera.position.copy(player);
     if(!settings.reduced){camera.position.y+=moving?Math.sin(walkPhase)*.034:Math.sin(time*1.4)*.007;camera.rotation.z=moving?Math.sin(walkPhase*.5)*.009:0;}else camera.rotation.z=0;
     camera.rotation.y=yaw;camera.rotation.x=pitch;
-    viewRig.position.set(Math.sin(walkPhase*.5)*(moving?.012:.002),Math.cos(walkPhase)*(moving?.012:.002),0);
+    if(settings.reduced)viewRig.position.set(0,0,0);
+    else viewRig.position.set(Math.sin(walkPhase*.5)*(moving?.012:.002),Math.cos(walkPhase)*(moving?.012:.002),0);
     const distance=Math.hypot(granny.root.position.x-player.x, granny.root.position.z-player.z);
     pathClock -= dt; sightClock -= dt;
     if (sightClock <= 0) {
       enemyHasSight = navigation.clearSight(granny.root.position, player, .25);
+      // Direct pursuit invalidates old waypoints, even if the player stays in one cell.
+      if(enemyHasSight){path=[];pathGoal=-1;pathClock=0;}
       sightClock = .12;
     }
     if (!enemyHasSight && pathClock <= 0) {
@@ -539,6 +893,7 @@
   }
   function updateIntro(time){
     const portrait=innerWidth<innerHeight;
+    if(settings.reduced)time=0;
     camera.position.set(portrait?18.4:18.1,1.61+Math.sin(time*.4)*.015,portrait?31.8:32.1);
     camera.lookAt(portrait?18:16.2,1.55,24.7);camera.rotation.z=Math.sin(time*.22)*.002;
     granny.root.position.set(18.6+Math.sin(time*.4)*.045,0,25.6);granny.root.rotation.y=.02+Math.sin(time*.3)*.08;
@@ -590,12 +945,19 @@
     }
     const time = simulationTime;
     if (!frozen) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.group.visible) { item.group.position.y = item.baseY + Math.sin(time * 1.8 + i) * .09; item.group.rotation.y = time * .5 + i; }
-      }
       fixtureLights.forEach((light, i) => { light.intensity = settings.reduced ? 16 : 16 * (.94 + Math.sin(time * 2.1 + i) * .035 + (i === 2 && Math.sin(time * 3.73) > .98 ? -.34 : 0)); });
-      dust.rotation.y = Math.sin(time * .035) * .006;
+      dust.rotation.y = settings.reduced ? 0 : Math.sin(time * .035) * .006;
+    }
+    if (!frozen || dirtyFrames > 0) {
+      updateDecor(time);
+      mistMaterial.uniforms.time.value = settings.reduced ? 0 : time;
+      for (let i = 0; i < items.length; i++) {
+        const item=items[i],motion=settings.reduced?0:time;
+        item.group.position.y=item.baseY+(settings.reduced?0:Math.sin(motion*1.8+i)*.09);
+        item.group.rotation.y=settings.reduced?i:motion*.5+i;
+        const pulse=settings.reduced?1:1+Math.sin(motion*1.8+i)*.035;
+        item.aura.scale.set(.78*pulse,1.15*pulse,1);
+      }
     }
     // Paused menus and result screens keep their last canvas frame. Quality/resize
     // invalidation still renders fresh frames, but an idle menu does no scene passes.
@@ -676,6 +1038,14 @@
       renderer.shadowMap.enabled = high;
     }
     dust.visible = settings.quality === 'high';
+    rain.visible = settings.quality !== 'low';
+    atmosphere.visible = settings.quality !== 'low';
+    flashlight.map = settings.quality === 'low' ? null : torchPattern;
+    lightHalos.forEach(halo=>halo.visible=settings.quality !== 'low');
+    // Disable derivative-based surface relief on battery-priority devices.
+    for (const [material, scale] of [[wallMat,.055],[woodMat,.045],[floorMat,.038]]) {
+      if (!extreme) material.bumpScale = settings.quality === 'low' ? 0 : scale;
+    }
     $('quality-select').value = settings.quality;
     document.body.dataset.graphics = settings.quality;
     $('graphics-monitor').classList.toggle('hidden', !extreme);
@@ -719,7 +1089,15 @@
   $('volume-input').addEventListener('input',e=>{settings.volume=Number(e.target.value);soundPreferenceTouched=true;soundOn=settings.volume>0;ensureAudio();deferSettingsSave();});
   $('sensitivity-input').addEventListener('change', saveSettings);
   $('volume-input').addEventListener('change', saveSettings);
-  $('reduce-effects').addEventListener('change',e=>{settings.reduced=e.target.checked;saveSettings();invalidateScene();});
+  $('reduce-effects').addEventListener('change',e=>{
+    settings.reduced=e.target.checked;
+    if(settings.reduced){
+      camera.rotation.z=0;viewRig.position.set(0,0,0);dust.rotation.y=0;
+      fixtureLights.forEach(light=>light.intensity=16);
+      $('danger-vignette').style.opacity=0;$('flash').style.opacity=0;
+    }
+    saveSettings();invalidateScene();
+  });
   document.addEventListener('keydown',e=>{
     if(e.code==='Tab'){
       const modals=[...document.querySelectorAll('.modal-layer:not(.hidden)')];const modal=!$('settings-modal').classList.contains('hidden')?$('settings-modal'):modals[modals.length-1];
@@ -731,7 +1109,7 @@
       else if(state==='playing')pauseGame();else if(state==='paused' && !e.repeat && performance.now()-lastPauseAt>250)resumeGame();
       e.preventDefault(); return;
     }
-    if (e.code === 'KeyG' && settings.quality === 'xhigh' && !e.repeat) { settings.quality = 'high'; applyQuality(); saveSettings(); return; }
+    if (e.code === 'KeyG' && settings.quality === 'xhigh' && !e.repeat && !e.target.closest('input,select,textarea')) { settings.quality = 'high'; applyQuality(); saveSettings(); return; }
     if(state!=='playing')return;
     if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))e.preventDefault();
     keys.add(e.code);if(e.code==='KeyE'&&!e.repeat)interact();
@@ -799,14 +1177,28 @@
   window.KuchiieDiagnostics = Object.freeze({
     snapshot() {
       return {
+        release: document.querySelector('meta[name="kuchiie-release"]')?.content || 'development',
         state, elapsed, stamina, exhausted, collected, yaw, pitch,
         player: { x: player.x, z: player.z },
         enemy: { x: granny.root.position.x, z: granny.root.position.z },
         input: { stickX: stick.x, stickY: stick.y, lookPointer, stickPointer, runPointer, running, keyCount: keys.size },
         renderFrames, contextLost, navigationSearches: navigation.searches,
         savedRigidDraws, modalDepth, quality: settings.quality,
+        visual: { atmosphere: atmosphere.visible,
+          moonbeams: atmosphere.children.filter(mesh => mesh.material === beamMaterial).length,
+          mistLayers: atmosphere.children.filter(mesh => mesh.material === mistMaterial).length,
+          moonPools: moonPools.count, mistTime: mistMaterial.uniforms.time.value,
+          surfaceRelief: wallMat.bumpScale > 0,
+          cloth: !!granny.skirtPieces[0].mesh.material.map,
+          torchPattern: flashlight.map === torchPattern,
+          lightHalos: lightHalos.filter(halo=>halo.visible).length,
+          haloDepthTest: haloMaterial.depthTest,
+          talismanPose: items.map(item=>({y:item.group.position.y,rotation:item.group.rotation.y,auraScale:item.aura.scale.y})) },
         graphics: graphics && graphics.enabled ? graphics.getStats() : null,
         gpu: { textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, programs: renderer.info.programs.length },
+        environment: { rooms: [...roomNames], candles: decor.candles.length, lanterns: decor.lanterns.length, webs: decor.webs, rainVisible: rain.visible,
+          pendulumAngle: pendulum.rotation.x, lanternAngle: decor.lanterns[0].rotation.z,
+          cameraRoll: camera.rotation.z, handOffset: viewRig.position.length(), pathLength: path.length },
         settings: { ...settings }
       };
     }
