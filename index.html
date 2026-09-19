@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b0c0c">
+  <meta name="kuchiie-release" content="2026-09-19-two-floors">
   <meta name="description" content="朽家 — おばあちゃんが待っている。スマホで遊べる、ボクセル3D・一人称サバイバルホラー。">
   <title>朽家 KUCHIIE — おばあちゃんが、待っている。</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -43,11 +44,11 @@
     </section>
     <aside class="scene-caption"><span class="record-light"></span><span>玄関廊下 / 02:13 AM</span><div>誰もいない、はずだった。</div></aside>
     <div class="scene-coordinate">35° 41′ 22.8″ N<br>139° 41′ 30.1″ E</div>
-    <footer class="landing-footer"><div class="feature-list"><span><i class="tiny-cube">◇</i> VOXEL 3D</span><span><i>⌖</i> FIRST PERSON</span><span><i>◷</i> 5–10 MIN</span></div><p><span class="warning-mark">△</span> 恐怖・点滅・突然の大きな音の演出があります</p><span class="version">VOL. 01 <b>—</b> THE ARRIVAL</span></footer>
+    <footer class="landing-footer"><div class="feature-list"><span><i class="tiny-cube">◇</i> VOXEL 3D</span><span><i>⌖</i> FIRST PERSON</span><span><i>◷</i> 2 FLOORS / 18 ROOMS</span></div><p><span class="warning-mark">△</span> 恐怖・点滅・突然の大きな音の演出があります</p><span class="version">VOL. 01 <b>—</b> THE ARRIVAL</span></footer>
   </main>
 
   <section id="game-hud" class="hidden" aria-label="ゲーム情報">
-    <div class="hud-top"><div class="objective"><span class="hud-eyebrow">第一夜 / 脱出</span><strong id="objective-text">3つの護符を探す</strong><div class="talisman-count"><span id="key-1">符</span><span id="key-2">符</span><span id="key-3">符</span><small id="key-count">0 / 3</small></div></div><button id="pause-button" class="square-button" aria-label="一時停止">Ⅱ</button></div>
+    <div class="hud-top"><div class="objective"><span class="hud-eyebrow">1F / 本館</span><strong id="objective-text">3つの護符を探す</strong><div class="talisman-count"><span id="key-1">符</span><span id="key-2">符</span><span id="key-3">符</span><small id="key-count">0 / 3</small></div></div><button id="pause-button" class="square-button" aria-label="一時停止">Ⅱ</button></div>
     <div id="crosshair"></div>
     <div id="interaction-prompt" class="hidden">調べる</div>
     <div id="game-message" role="status"></div>
@@ -57,7 +58,7 @@
   </section>
 
   <div class="modal-layer hidden" id="howto-modal" role="dialog" aria-modal="true" aria-labelledby="howto-title">
-    <section class="modal-card"><button class="modal-close" data-close="howto-modal" aria-label="閉じる">×</button><span class="modal-eyebrow">HOW TO SURVIVE</span><h2 id="howto-title">音を立てるな。<br>立ち止まるな。</h2><p>屋敷に隠された <em>3つの護符</em> を集め、<em>最初の玄関</em> から脱出してください。おばあさんはあなたを探し続けます。近づく足音に耳を澄ませて。</p><div class="instruction-grid"><div><span>01 / 探索</span><p>光る護符に近づき「調べる」。<br>PC は E キー。</p></div><div><span>02 / 逃走</span><p>「走る」を長押しして逃げる。<br>スタミナの使いすぎに注意。</p></div><div><span>03 / 操作</span><p>左スティックで移動、右側を<br>スワイプして見回します。</p></div><div><span>04 / PC</span><p>WASD 移動、マウスで視点。<br>Shift 走る / Esc 一時停止。</p></div></div><p class="modal-note">恐怖・点滅・急な音が苦手な方はご注意ください。<br>設定から点滅を抑制できます。いつでも一時停止できます。</p><button class="outline-button" data-close="howto-modal">わかった</button></section>
+    <section class="modal-card"><button class="modal-close" data-close="howto-modal" aria-label="閉じる">×</button><span class="modal-eyebrow">HOW TO SURVIVE</span><h2 id="howto-title">音を立てるな。<br>立ち止まるな。</h2><p>約3倍に広がった屋敷の<em>本館・東棟・2階</em>に隠された <em>3つの護符</em> を集め、<em>最初の玄関</em> から脱出してください。東棟の南側にある階段は、そのまま歩いて昇り降りできます。おばあさんはあなたを探し続けます。近づく足音に耳を澄ませて。</p><div class="instruction-grid"><div><span>01 / 探索</span><p>各エリアの光る護符を探す。<br>近づいて「調べる」／ PC は E。</p></div><div><span>02 / 逃走</span><p>「走る」を長押しして逃げる。<br>スタミナの使いすぎに注意。</p></div><div><span>03 / 操作</span><p>左スティックで移動、右側を<br>スワイプして見回します。</p></div><div><span>04 / PC</span><p>WASD 移動、マウスで視点。<br>Shift 走る / Esc 一時停止。</p></div></div><p class="modal-note">恐怖・点滅・急な音が苦手な方はご注意ください。<br>設定から点滅を抑制できます。いつでも一時停止できます。</p><button class="outline-button" data-close="howto-modal">わかった</button></section>
   </div>
 
   <div class="modal-layer hidden" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><section class="modal-card settings-card"><button class="modal-close" data-close="settings-modal" aria-label="閉じる">×</button><span class="modal-eyebrow">CONFIGURATION</span><h2 id="settings-title">気配の調整。</h2><label class="setting-row">描画品質<select id="quality-select" aria-describedby="quality-guidance"><option value="xhigh">XHIGH Graphics / 最高負荷</option><option value="high">高画質</option><option value="low">軽量 / バッテリー優先</option></select></label><p id="quality-guidance" class="quality-guidance">XHIGHは高負荷の実験的モード。選択後に確認が必要です。</p><section id="xhigh-panel" class="xhigh-panel hidden" aria-labelledby="xhigh-title"><div class="xhigh-heading"><span id="xhigh-title">XHIGH <small>GRAPHICS</small></span><span class="xhigh-tag" id="xhigh-tag">EXTREME</span></div><p class="xhigh-features">最大3×解像度 / 最大4Kシャドウ<br>HDRブルーム / 接触陰影 / 光の散乱<br>床のリアルタイム反射 / 4,800粒子</p><p id="xhigh-warning" class="xhigh-warning">発熱・急激な電池消費・低FPS・ブラウザ終了の可能性があります。熱い場合は中止してください。端末保護機能の制限は解除しません。</p><p id="xhigh-status" class="xhigh-status" role="status"></p><div id="xhigh-consent" class="xhigh-consent"><button id="xhigh-confirm" class="outline-button">負荷を了承して有効にする</button><button id="xhigh-cancel" class="text-button">変更しない</button></div></section><label class="setting-row">視点感度<input type="range" id="sensitivity-input" min="0.4" max="2" step="0.1" value="1"></label><label class="setting-row">音量<input type="range" id="volume-input" min="0" max="1" step="0.05" value="0.6"></label><label class="setting-row">点滅・画面揺れを抑える<input type="checkbox" id="reduce-effects"></label><p class="modal-note">動作が重い場合は「軽量」をお試しください。<br>スマートフォンは横向きでもプレイできます。</p><button class="outline-button" data-close="settings-modal">設定を閉じる</button></section></div>
@@ -68,8 +69,8 @@
   <aside id="graphics-monitor" class="graphics-monitor hidden" aria-label="XHIGH描画情報"><div class="graphics-monitor-title"><i></i> XHIGH <span id="graphics-fps">— FPS</span></div><div id="graphics-resolution">描画準備中</div><p id="graphics-performance-note" class="hidden">低FPS：高画質への変更を推奨</p><button id="graphics-recover" title="XHIGHを解除して高画質に戻す">高画質に戻す <span>G ↘</span></button></aside>
   <div id="loading" role="status"><span class="brand-seal">朽</span><span id="loading-text">家の記憶を辿っています<span class="loading-dots">…</span></span><button id="reload-button" class="outline-button hidden">再読み込み</button></div>
   <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <script src="js/core.js"></script>
-  <script src="js/graphics.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/core.js?v=20260919-two-floors"></script>
+  <script src="js/graphics.js?v=20260919-two-floors"></script>
+  <script src="js/game.js?v=20260919-two-floors"></script>
 </body>
 </html>
