@@ -10,7 +10,7 @@
   }
   const T = THREE;
   const isTouch = matchMedia('(pointer:coarse)').matches;
-  const CELL = 2, SIZE = 19;
+  const CELL = 2;
   const Core = window.KuchiieCore;
   if (!Core) { $('loading-text').textContent = 'ゲームコードを読み込めませんでした。再読み込みしてください。'; return; }
   let savedSettings = null;
@@ -28,10 +28,14 @@
   let dirtyFrames = 3, contextLost = false, accumulator = 0, hudClock = 0;
   let sightClock = 0, enemyHasSight = false, pathGoal = -1, stuckTime = 0;
   let modalDepth = 0, lastPauseAt = -Infinity;
+  const visitedAreas = new Set(['main']);
   const staminaStep = { value: 100, exhausted: false, sprint: false };
   const invalidateScene = () => { dirtyFrames = Math.max(dirtyFrames, 2); };
   const keys = new Set();
+  const house = Core.createHouse();
+  const navigation = new Core.HouseNavigation(house);
   const player = new T.Vector3(18, 1.62, 32.7);
+  player.floor = 0; player.eyeHeight = 1.62;
   const exitPos = new T.Vector3(18, 0, 35.05);
   const scene = new T.Scene();
   scene.background = new T.Color(0x070c0b);
@@ -145,22 +149,39 @@
     if(!batches.has(color))batches.set(color,[]);
     batches.get(color).push([w,h,d,x,y,z]);
   }
-  const grid=Array.from({length:SIZE},()=>Array(SIZE).fill(1));
-  function carve(x1,z1,x2,z2){for(let z=z1;z<=z2;z++)for(let x=x1;x<=x2;x++)grid[z][x]=0;}
-  carve(8,1,10,17);
-  for(const z of [1,7,13]){
-    carve(1,z,6,z+4);carve(12,z,17,z+4);carve(6,z+2,12,z+2);
-  }
-  // Room partitions retain navigable loops and real doorways.
-  for (const z of [5,11]) { grid[z][3]=1;grid[z][4]=1;grid[z][14]=1;grid[z][15]=1; }
   const wallTransforms=[];
-  for(let z=0;z<SIZE;z++)for(let x=0;x<SIZE;x++)if(grid[z][x])wallTransforms.push([x*CELL,1.8,z*CELL]);
+  const stairOpening = (x,z) => z === house.stairs.z && x >= house.stairs.first && x <= house.stairs.landing;
+  house.floors.forEach((grid,level)=>{
+    for(let z=0;z<house.height;z++)for(let x=level?18:0;x<house.width;x++) {
+      // The upper navigation mask closes the stair void, but must not fill it with geometry.
+      if(grid[z][x] && !(level === 1 && stairOpening(x,z))) wallTransforms.push([x*CELL,1.8+level*house.floorHeight,z*CELL]);
+    }
+  });
   const walls=new T.InstancedMesh(boxGeo,wallMat,wallTransforms.length);
   const dummy=new T.Object3D();
   wallTransforms.forEach((p,i)=>{dummy.position.set(...p);dummy.scale.set(CELL,3.6,CELL);dummy.updateMatrix();walls.setMatrixAt(i,dummy.matrix);});
   walls.receiveShadow=true;walls.castShadow=true;scene.add(walls);
   const floor=box(38,.2,38,18,-.13,18,floorMat);floor.castShadow=false;
   box(38,.18,38,18,3.68,18,0x252c27);
+  box(36,.2,38,55,-.13,18,floorMat).castShadow=false;
+  // Individual slabs leave a real opening overhead throughout the stair flight.
+  for(let z=0;z<house.height;z++)for(let x=19;x<house.width;x++) {
+    if(stairOpening(x,z) && x < house.stairs.landing) continue;
+    block(CELL,.18,CELL,x*CELL,3.68,z*CELL,0x252c27);
+    block(CELL,.2,CELL,x*CELL,house.floorHeight-.1,z*CELL,0x454537);
+  }
+  box(38,.18,38,54,house.floorHeight+3.68,18,0x252c27);
+  for(let step=0;step<house.stairs.steps;step++) {
+    const depth=(house.stairs.endX-house.stairs.startX)/house.stairs.steps;
+    const h=(step+1)*house.floorHeight/house.stairs.steps;
+    const x=house.stairs.startX+(step+.5)*depth;
+    block(depth,h,1.96,x,h/2,32,0x544b34);
+    block(.07,.025,1.9,x-depth/2+.04,h+.01,32,0x9a8760);
+    if(step%3===0)for(const z of [31.08,32.92]) {
+      block(.055,.84,.055,x,h+.42,z,0x383a2a);
+      block(depth*3,.075,.075,x+depth,h+.84,z,0x806c45);
+    }
+  }
   // Corridor ceiling beams, dado rails, chipped supports and copper pipes.
   for(let z=2;z<35;z+=4){
     block(6.2,.22,.32,18,3.42,z,0x252c24);
@@ -312,6 +333,106 @@
       block(.9,.65,.55,x+2,.33,z+3,0x777660);block(1.05,.13,.7,x+2,.73,z+3,0x492e29);
     }
   });
+  // New east-wing rooms keep the same instanced, procedural voxel style.
+  const annexNames = ['納戸','食堂','階段室','客間','洗面','物置','資料室','裁縫','階段廊','子供','寝所','奥座敷'];
+  for(const level of [0,1]) {
+    const base=level*house.floorHeight;
+    for(const side of [0,1])for(const [row,z] of [6,18,30].entries()) {
+      const x=side?66:42, index=level*6+side*3+row;
+      const name=annexNames[index];
+      // Desks, bookshelves, stacked trunks and patterned tatami distinguish each room.
+      block(1.7,.15,.85,x,base+1.05,z-2.5,0x65563d);
+      for(const dx of [-.7,.7])for(const dz of [-.3,.3])block(.12,1,.12,x+dx,base+.5,z-2.5+dz,0x383a2a);
+      for(let k=0;k<4;k++)block(.33,.07,.3,x-.45,base+1.16+k*.07,z-2.5,k%2?0x492e29:0x777660);
+      block(1.6,2.6,.5,x+2,base+1.3,z-3.55,0x333a2b);
+      for(let shelf=0;shelf<4;shelf++) {
+        block(1.65,.08,.6,x+2,base+.3+shelf*.6,z-3.45,0x65563d);
+        for(let k=0;k<6;k++)block(.16,.29+(k%3)*.05,.3,x+1.4+k*.22,base+.48+shelf*.6,z-3.15,[0x535c4e,0x806c45,0x492e29][(k+index)%3]);
+      }
+      if(!(side===0 && row===2)) {
+        block(1.4,.55,.8,x-2,base+.28,z+2,0x403b2c);
+        for(const dx of [-.45,.45])block(.08,.57,.82,x-2+dx,base+.29,z+2,0x806c45);
+        for(let k=0;k<3;k++)block(1.15,.025,2.6,x-1.2+k*1.2,base+.01,z,level?0x686853:0x535c4e);
+      }
+      if(index===1) { // Abandoned dining table with mismatched place settings.
+        block(2.6,.14,1.4,x,base+.78,z+1.5,0x65563d);
+        for(const dx of [-1.1,1.1])for(const dz of [-.5,.5])block(.12,.75,.12,x+dx,base+.38,z+1.5+dz,0x383a2a);
+        for(const dx of [-.8,.8])for(const dz of [-.4,.4]) {
+          block(.3,.045,.3,x+dx,base+.88,z+1.5+dz,0xbdad7f);
+          block(.06,.12,.06,x+dx+.23,base+.92,z+1.5+dz,0x777660);
+        }
+      } else if(index===7) { // Sewing machine, thread spools and an unfinished red garment.
+        block(.75,.08,.38,x+.25,base+1.18,z-2.5,0x202820);
+        block(.16,.48,.27,x+.49,base+1.43,z-2.5,0x252c24);
+        block(.64,.15,.27,x+.22,base+1.6,z-2.5,0x252c24);
+        block(.025,.22,.025,x-.05,base+1.43,z-2.5,0xa39368);
+        for(let k=0;k<4;k++)block(.13,.16,.13,x-.7+k*.17,base+1.24,z-2.75,k%2?0x492e29:0xbdad7f);
+        block(.7,.035,.5,x+.5,base+1.16,z-2.05,0x74261b);
+      } else if(index===9) { // Dolls suspended high above the nursery, outside the walking route.
+        for(const dx of [-.8,0,.8]) {
+          block(.02,.8,.02,x+dx,base+2.96,z+2,0x806c45);
+          block(.24,.3,.18,x+dx,base+2.15,z+2,0x492e29);
+          block(.2,.2,.2,x+dx,base+2.42,z+2,0xbdad7f);
+          for(const eye of [-.05,.05])block(.03,.03,.015,x+dx+eye,base+2.44,z+2.105,0x151e19);
+        }
+      } else if(index===10) { // Empty sleeping place, patched quilt, folded pillow.
+        block(1.8,.12,2.7,x,base+.1,z+1.2,0x777660);
+        block(1.65,.14,1.9,x,base+.23,z+1.5,0x492e29);
+        block(.8,.18,.42,x,base+.24,z+.12,0xbdad7f);
+        for(let k=0;k<6;k++)block(.045,.018,1.8,x-.7+k*.28,base+.31,z+1.5,0x806c45);
+      } else if(index===11) { // The inner sanctum: a sealed alcove and an empty memorial portrait.
+        block(3.4,.26,1.1,x,base+.15,z+3.2,0x383a2a);
+        block(2.7,2.5,.16,x,base+1.55,z+3.6,0x806c45);
+        block(2.45,2.26,.08,x,base+1.55,z+3.48,0x151e19);
+        block(.8,1.25,.05,x,base+1.65,z+3.42,0x492e29);
+        for(const dx of [-1.4,1.4])candle(x+dx,base+.3,z+3.15);
+        for(const dx of [-.7,0,.7])block(.2,.65,.08,x+dx,base+.61,z+3.2,0x252c24);
+      }
+      const sign=new T.Mesh(new T.PlaneGeometry(.34,.76),new T.MeshLambertMaterial({map:labelTexture(name,'#333a2b','#c8b878')}));
+      sign.position.set(side?56.975:51.025,base+2.25,z+1.5);sign.rotation.y=side?-Math.PI/2:Math.PI/2;scene.add(sign);
+      // Frosted outer windows supply a visual landmark without extra dynamic lights per room.
+      if(side) {
+        block(.12,1.6,2.2,70.9,base+2,z-1,0x405957);
+        for(const dz of [-1.1,0,1.1])block(.18,1.8,.07,70.8,base+2,z-1+dz,0x65563d);
+        for(const y of [1.1,2.9])block(.18,.08,2.4,70.8,base+y,z-1,0x65563d);
+      }
+    }
+    for(let z=2;z<35;z+=4) {
+      block(6.1,.22,.3,54,base+3.42,z,0x252c24);
+      block(1.2,.02,2.8,54,base+.01,z,level?0x333b2c:0x492e29);
+    }
+    for(const z of [9,27]) {
+      const light=new T.PointLight(level?0x91b5b5:0xe8b981,18,15,2);
+      light.position.set(54,base+2.65,z);scene.add(light);fixtureLights.push(light);
+      block(.4,.16,.4,54,base+3.3,z,0xbdad7f);
+    }
+  }
+  // Stairwell details guide the player without adding lights to every room.
+  candle(38.1,.04,31.35);
+  candle(50.3,house.floorHeight+.04,32.55);
+  const stairLight=new T.PointLight(0xe8b981,13,12,2);
+  stairLight.position.set(43.5,4.6,32);scene.add(stairLight);
+  for(let step=2;step<house.stairs.steps;step+=4) {
+    const x=house.stairs.startX+(step+.5)*.5,y=(step+1)*house.floorHeight/house.stairs.steps;
+    block(.16,.012,.3,x,y+.018,31.72,0x252c24);
+    block(.16,.012,.3,x+.2,y+.018,32.18,0x252c24);
+  }
+  function directionSign(text,x,y,z,rotation=0) {
+    const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#26342d';ctx.fillRect(0,0,512,128);
+    ctx.strokeStyle='#a39368';ctx.lineWidth=5;ctx.strokeRect(6,6,500,116);
+    ctx.fillStyle='#e0d3a3';ctx.font='bold 42px sans-serif';ctx.textAlign='center';ctx.fillText(text,256,80);
+    const texture=new T.CanvasTexture(canvas);texture.colorSpace=T.SRGBColorSpace;
+    const sign=new T.Mesh(new T.PlaneGeometry(2.2,.55),new T.MeshBasicMaterial({map:texture}));
+    sign.position.set(x,y,z);sign.rotation.y=rotation;scene.add(sign);
+  }
+  directionSign('東棟 →  階段 2F',34,2.6,33.02,Math.PI);
+  for(const z of [8,20])directionSign('東棟 →',36,2.55,z+.92,Math.PI);
+  directionSign('2F →',38.8,2.45,32.92,Math.PI);
+  directionSign('← 1F / 玄関',50.3,house.floorHeight+2.1,32.92,Math.PI);
+  directionSign('1F 東棟',54,2.6,1.03);
+  directionSign('2F 奥座敷',54,house.floorHeight+2.6,1.03);
+  roomNames.push(...annexNames);
   // Hanging paper lanterns: animate the parent pivots; voxel parts remain static.
   for(const z of [10,22,29]){
     const pivot=new T.Group();pivot.position.set(19.65,3.45,z);scene.add(pivot);
@@ -339,11 +460,13 @@
   const webGeo=new T.BufferGeometry();webGeo.setAttribute('position',new T.Float32BufferAttribute(webVertices,3));
   const webs=new T.LineSegments(webGeo,new T.LineBasicMaterial({color:0x899084,transparent:true,opacity:.32}));scene.add(webs);
   // Rain is constrained to each window, updated in place and omitted in low mode.
-  const rainCoords=new Float32Array(roomCenters.length*22*6);
-  roomCenters.forEach(([x,z],room)=>{for(let i=0;i<22;i++){
-    const start=(room*22+i)*6,wx=x>18?34.67:1.33,zz=z-2.12+rand()*2.24;
+  const windowLocations = roomCenters.map(([x,z])=>({x:x>18?34.67:1.33,z,base:0,right:x>18}));
+  for(const level of [0,1])for(const z of [6,18,30])windowLocations.push({x:70.67,z,base:level*house.floorHeight,right:true});
+  const rainCoords=new Float32Array(windowLocations.length*22*6);
+  windowLocations.forEach(({x:wx,z,base},room)=>{for(let i=0;i<22;i++){
+    const start=(room*22+i)*6,zz=z-2.12+rand()*2.24;
     rainCoords[start]=rainCoords[start+3]=wx;rainCoords[start+2]=rainCoords[start+5]=zz;
-    decor.rain.push({start,phase:rand()});
+    decor.rain.push({start,base,phase:rand()});
   }});
   const rainGeo=new T.BufferGeometry();rainGeo.setAttribute('position',new T.BufferAttribute(rainCoords,3).setUsage(T.DynamicDrawUsage));
   const rain=new T.LineSegments(rainGeo,new T.LineBasicMaterial({color:0x99b4b5,transparent:true,opacity:.25}));rain.frustumCulled=false;scene.add(rain);
@@ -353,7 +476,7 @@
     decor.lanterns.forEach((pivot,i)=>pivot.rotation.z=settings.reduced?0:Math.sin(motion*.65+i)*.035);
     pendulum.rotation.x=settings.reduced?0:Math.sin(motion*2.4)*.22;
     if(rain.visible){
-      for(const drop of decor.rain){const y=2.84-((drop.phase+motion*.55)%1)*1.65;rainCoords[drop.start+1]=y;rainCoords[drop.start+4]=y+.09;}
+      for(const drop of decor.rain){const y=drop.base+2.84-((drop.phase+motion*.55)%1)*1.65;rainCoords[drop.start+1]=y;rainCoords[drop.start+4]=y+.09;}
       rainGeo.attributes.position.needsUpdate=true;
     }
   }
@@ -412,21 +535,21 @@
       }`
   });
   const moonPools = new T.InstancedMesh(new T.PlaneGeometry(3.9,.3),
-    new T.MeshBasicMaterial({color:0x8caab5,transparent:true,opacity:.055,depthWrite:false}), roomCenters.length * 4);
+    new T.MeshBasicMaterial({color:0x8caab5,transparent:true,opacity:.055,depthWrite:false}), windowLocations.length * 4);
   const poolTransform = new T.Object3D(); poolTransform.rotation.x = -Math.PI/2;
   let poolIndex = 0;
-  for (const [rx, rz] of roomCenters) {
-    const right = rx > 18, wx = right ? 34.64 : 1.36, endX = wx + (right ? -5.6 : 5.6);
+  for (const {x:wx,z:rz,base,right} of windowLocations) {
+    const endX = wx + (right ? -5.6 : 5.6);
     const geometry = new T.BufferGeometry();
     geometry.setAttribute('position', new T.Float32BufferAttribute([
-      wx,2.85,rz-2.1, wx,2.85,rz+.1, endX,.04,rz+1.8, endX,.04,rz-1.8
+      wx,base+2.85,rz-2.1, wx,base+2.85,rz+.1, endX,base+.04,rz+1.8, endX,base+.04,rz-1.8
     ],3));
     geometry.setAttribute('uv',new T.Float32BufferAttribute([0,0,1,0,1,1,0,1],2));
     geometry.setIndex([0,1,2,0,2,3]);
     atmosphere.add(new T.Mesh(geometry,beamMaterial));
     // A broken-up patch of moonlight, entirely inside each room.
     for (let j = 0; j < 4; j++) {
-      poolTransform.position.set(wx+(right?-2.6:2.6),-.018,rz-1.5+j*.52);
+      poolTransform.position.set(wx+(right?-2.6:2.6),base+.018,rz-1.5+j*.52);
       poolTransform.updateMatrix(); moonPools.setMatrixAt(poolIndex++,poolTransform.matrix);
     }
   }
@@ -447,9 +570,9 @@
       }`
   });
   const mistGeometry = new T.PlaneGeometry(5.7,8);
-  for (const z of [6,14,22,30]) {
+  for (const [x,base] of [[18,0],[54,0],[54,house.floorHeight]])for (const z of [6,14,22,30]) {
     const mist = new T.Mesh(mistGeometry,mistMaterial);
-    mist.rotation.x = -Math.PI/2; mist.position.set(18,.22,z); atmosphere.add(mist);
+    mist.rotation.x = -Math.PI/2; mist.position.set(x,base+.22,z); atmosphere.add(mist);
   }
 
   // A fully articulated voxel grandmother: articulated shoulders, elbows, hips,
@@ -598,8 +721,8 @@
   for(let i=0;i<3;i++)box(.025,.04,.1,.256+i*.035,-.355,-.44,0xa69877,viewRig);
   viewRig.visible=false;
   // Sparse dust catches the flashlight, using a single point-cloud draw.
-  const dustGeo=new T.BufferGeometry(),dustCoords=new Float32Array(300*3);
-  for(let i=0;i<300;i++){dustCoords[i*3]=14.8+rand()*6.4;dustCoords[i*3+1]=.2+rand()*3.1;dustCoords[i*3+2]=rand()*35;}
+  const dustGeo=new T.BufferGeometry(),dustCoords=new Float32Array(900*3);
+  for(let i=0;i<900;i++){const wing=Math.floor(i/300);dustCoords[i*3]=(wing?50.8:14.8)+rand()*6.4;dustCoords[i*3+1]=(wing===2?house.floorHeight:0)+.2+rand()*3.1;dustCoords[i*3+2]=rand()*35;}
   dustGeo.setAttribute('position',new T.BufferAttribute(dustCoords,3));
   const dust=new T.Points(dustGeo,new T.PointsMaterial({color:0xbdbd9c,size:.018,transparent:true,opacity:.27,depthWrite:false}));scene.add(dust);
   // Depth-tested light halos share one tiny texture; walls still occlude them.
@@ -633,8 +756,8 @@
   }
   talismanTex.needsUpdate=true;
   const items=[];
-  for(const p of [[4,6],[30,6],[30,30]]){
-    const group=new T.Group();group.position.set(p[0],1.25,p[1]);scene.add(group);
+  for(const p of house.talismans){
+    const group=new T.Group();group.position.set(p.x,p.floor*house.floorHeight+1.25,p.z);group.position.floor=p.floor;scene.add(group);
     const paper=new T.Mesh(new T.BoxGeometry(.28,.65,.028),new T.MeshLambertMaterial({map:talismanTex,emissive:0xb39240,emissiveIntensity:.5}));group.add(paper);
     const glow=new T.PointLight(0xfbd28b,7,5,2);glow.position.y=.2;group.add(glow);
     const aura=addHalo(group,0,0,0,.78,1.15);
@@ -642,10 +765,9 @@
     box(.022,.15,.025,0,.4,0,0x77603c,group);
     box(.055,.09,.032,-.095,-.35,0,0xa99766,group);
     box(.045,.055,.032,.08,-.333,0,0xb9a570,group);
-    items.push({group,aura,baseY:1.25,collected:false});
+    items.push({group,aura,baseY:p.floor*house.floorHeight+1.25,collected:false});
   }
 
-  const navigation = new Core.Navigation(grid, CELL);
   // Keep articulated pivots, but instance rigid same-material voxel parts beneath them.
   const animatedMeshes = new Set(granny.skirtPieces.map(piece => piece.mesh));
   const groups = [];
@@ -729,7 +851,7 @@
       const pan=((granny.root.position.x-player.x)*Math.cos(yaw)-(granny.root.position.z-player.z)*Math.sin(yaw))/Math.max(.1,distance);
       noise(.22,v,350,pan*.85);tone(53,.3,v*.45,'triangle');
     }
-    else{noise(.11,.2,510);tone(79,.13,.08,'sine');}
+    else{noise(.11,.2,player.floor===1?680:510);tone(navigation.onStairs(player)?61:79,.13,.08,'sine');}
   }
 
   const moveEntity = (position, dx, dz, radius = .24) => navigation.move(position, dx, dz, radius);
@@ -741,12 +863,15 @@
     for (const item of items) {
       if (item.collected) continue;
       const distance = Math.hypot(player.x - item.group.position.x, player.z - item.group.position.z);
-      if (distance < nearest && clearSight(player, item.group.position)) { nearest = distance; targetItem = item; }
+      if (distance < nearest && player.floor === item.group.position.floor && clearSight(player, item.group.position)) { nearest = distance; targetItem = item; }
     }
-    if (Math.hypot(player.x - exitPos.x, player.z - exitPos.z) < 1.8) targetItem = 'exit';
+    if (player.floor === 0 && Math.hypot(player.x - exitPos.x, player.z - exitPos.z) < 1.8) targetItem = 'exit';
   }
   function updateHud() {
     refreshInteraction();
+    const location = navigation.onStairs(player) ? '階段 / 1F ↔ 2F' : player.floor === 1 ? '2F / 東棟' : player.x > 36 ? '1F / 東棟' : '1F / 本館';
+    const floorLabel = $('game-hud').querySelector('.objective .hud-eyebrow');
+    if(floorLabel.textContent !== location) floorLabel.textContent = location;
     const prompt = $('interaction-prompt');
     prompt.classList.toggle('hidden', !targetItem);
     if (targetItem) {
@@ -785,16 +910,17 @@
     $('end-screen').classList.add('hidden');$('landing').classList.add('hidden');$('game-hud').classList.remove('hidden');document.body.classList.add('playing');
     state='playing';elapsed=0;collected=0;stamina=100;chaseTime=0;walkPhase=0;pathClock=0;path=[];lastEnemyFoot=0;lastFoot=0;threat=0;resetInput();
     targetItem = null; exhausted = false; accumulator = 0; hudClock = 0;
+    visitedAreas.clear();visitedAreas.add('main');
     pathGoal = -1; sightClock = 0; stuckTime = 0; enemyHasSight = false; previousTime = performance.now();
     $('elapsed-time').textContent = '00:00'; $('stamina-fill').style.width = '100%';
     $('interaction-prompt').classList.add('hidden'); viewRig.position.set(0, 0, 0); invalidateScene();
-    player.set(18,1.62,32.7);yaw=0;pitch=0;camera.position.copy(player);camera.rotation.set(0,0,0);
+    player.set(18,1.62,32.7);player.floor=0;yaw=0;pitch=0;camera.position.copy(player);camera.rotation.set(0,0,0);
     flashlight.target.position.set(player.x,player.y,player.z-10);
-    granny.root.position.set(18,0,6);granny.root.rotation.set(0,0,0);
+    granny.root.position.set(18,0,6);granny.root.position.floor=0;granny.root.rotation.set(0,0,0);
     items.forEach(i=>{i.collected=false;i.group.visible=true;});exitSeals.forEach(s=>s.visible=true);updateObjective();viewRig.visible=true;
     $('danger-vignette').style.opacity=0;$('flash').style.opacity=0;$('touch-look-hint').style.opacity=1;
     if(!soundPreferenceTouched)soundOn=true;
-    ensureAudio();pointerLock();showMessage('3つの護符を集めて、この玄関へ戻れ。',6);updateHud();
+    ensureAudio();pointerLock();showMessage('本館・東棟・2階の護符を集め、玄関へ戻れ。階段は東棟の南側。',8);updateHud();
   }
   function updateObjective(){
     $('key-count').textContent=`${collected} / 3`;
@@ -824,7 +950,7 @@
     state = 'playing'; closeModal('pause-modal'); resetInput();
     accumulator = 0; previousTime = performance.now(); invalidateScene(); ensureAudio(); pointerLock();
   }
-  function goHome(){state='intro';modalDepth=0;targetItem=null;accumulator=0;invalidateScene();resetInput();unlock();viewRig.visible=false;document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden'));$('end-screen').classList.add('hidden');$('game-hud').classList.add('hidden');$('landing').classList.remove('hidden');document.body.classList.remove('playing');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;items.forEach(i=>i.group.visible=true);exitSeals.forEach(s=>s.visible=true);granny.root.position.set(18.6,0,25.6);exitGlow.color.setHex(0xffc585);exitGlow.intensity=10;modalFocus.clear();}
+  function goHome(){state='intro';modalDepth=0;targetItem=null;accumulator=0;invalidateScene();resetInput();unlock();viewRig.visible=false;document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden'));$('end-screen').classList.add('hidden');$('game-hud').classList.add('hidden');$('landing').classList.remove('hidden');document.body.classList.remove('playing');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;items.forEach(i=>i.group.visible=true);exitSeals.forEach(s=>s.visible=true);granny.root.position.set(18.6,0,25.6);granny.root.position.floor=0;exitGlow.color.setHex(0xffc585);exitGlow.intensity=10;modalFocus.clear();}
   function endGame(won){
     state=won?'escaped':'dead';invalidateScene();unlock();resetInput();viewRig.visible=false;$('game-hud').classList.add('hidden');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;
     $('end-screen').classList.remove('hidden');$('end-screen').classList.toggle('escaped',won);
@@ -852,12 +978,18 @@
     stamina = staminaStep.value; exhausted = staminaStep.exhausted;
     const sprint = staminaStep.sprint, speed = sprint ? 4.15 : 2.55;
     if(moving){moveEntity(player,(-Math.sin(yaw)*forward+Math.cos(yaw)*strafe)*speed*dt,(-Math.cos(yaw)*forward-Math.sin(yaw)*strafe)*speed*dt);walkPhase+=dt*(sprint?12:8);if(elapsed-lastFoot>(sprint?.29:.48)){footstep();lastFoot=elapsed;}}
+    const area = player.floor===1 ? 'upper' : player.x>37 ? 'east' : 'main';
+    if(!visitedAreas.has(area)) {
+      visitedAreas.add(area);
+      showMessage(area==='upper'?'二階 ― 忘れられた部屋。奥座敷から、気配がする。':'東棟 ― 階段は南側。上からも、足音が聞こえる。',5);
+      tone(area==='upper'?92:110,1.3,.055,'sine',area==='upper'?69:82);
+    }
     camera.position.copy(player);
     if(!settings.reduced){camera.position.y+=moving?Math.sin(walkPhase)*.034:Math.sin(time*1.4)*.007;camera.rotation.z=moving?Math.sin(walkPhase*.5)*.009:0;}else camera.rotation.z=0;
     camera.rotation.y=yaw;camera.rotation.x=pitch;
     if(settings.reduced)viewRig.position.set(0,0,0);
     else viewRig.position.set(Math.sin(walkPhase*.5)*(moving?.012:.002),Math.cos(walkPhase)*(moving?.012:.002),0);
-    const distance=Math.hypot(granny.root.position.x-player.x, granny.root.position.z-player.z);
+    const distance=Math.hypot(granny.root.position.x-player.x, granny.root.position.z-player.z, granny.root.position.y-(player.y-player.eyeHeight));
     pathClock -= dt; sightClock -= dt;
     if (sightClock <= 0) {
       enemyHasSight = navigation.clearSight(granny.root.position, player, .25);
@@ -886,7 +1018,7 @@
     animateGranny(time,enemyMoving?1:0,distance<2?.45:0);
     if(enemyMoving&&elapsed-lastEnemyFoot>.61){footstep(true,distance);lastEnemyFoot=elapsed;}
     if(distance<.92&&clearSight(granny.root.position,player)){catchPlayer();return;}
-    threat=Math.max(0,1-distance/9);$('danger-vignette').style.opacity=settings.reduced?0:threat*(.2+Math.sin(time*7)*.045);
+    threat=Math.max(0,1-distance/9)*(navigation.level(granny.root.position)===player.floor?1:.25);$('danger-vignette').style.opacity=settings.reduced?0:threat*(.2+Math.sin(time*7)*.045);
     if(threat>.35&&Math.floor(elapsed*1.55)!==Math.floor((elapsed-dt)*1.55))tone(45,.16,threat*.18,'sine');
     hudClock -= dt;
     if (hudClock <= 0) { updateHud(); hudClock = .08; }
@@ -902,9 +1034,10 @@
   function updateScare(dt,time){
     deathTime+=dt;
     const front=scareDirection.set(-Math.sin(yaw),0,-Math.cos(yaw));
-    granny.root.position.copy(player).addScaledVector(front,1.05-Math.min(.25,deathTime*.35));granny.root.position.y=-.43;
+    const baseY=player.y-player.eyeHeight;
+    granny.root.position.copy(player).addScaledVector(front,1.05-Math.min(.25,deathTime*.35));granny.root.position.y=baseY-.43;
     granny.root.rotation.y=yaw+Math.PI;
-    camera.position.copy(player);camera.position.y=1.6;camera.lookAt(granny.root.position.x,1.65,granny.root.position.z);
+    camera.position.copy(player);camera.position.y=baseY+1.6;camera.lookAt(granny.root.position.x,baseY+1.65,granny.root.position.z);
     camera.rotation.z=Math.sin(deathTime*29)*.055;
     animateGranny(time,0,Math.min(1,deathTime*4));
     $('danger-vignette').style.opacity=.6;
@@ -1179,8 +1312,11 @@
       return {
         release: document.querySelector('meta[name="kuchiie-release"]')?.content || 'development',
         state, elapsed, stamina, exhausted, collected, yaw, pitch,
-        player: { x: player.x, z: player.z },
-        enemy: { x: granny.root.position.x, z: granny.root.position.z },
+        player: { x: player.x, y: player.y, z: player.z, floor: player.floor },
+        enemy: { x: granny.root.position.x, y: granny.root.position.y, z: granny.root.position.z, floor: navigation.level(granny.root.position) },
+        map: { width:house.width, height:house.height, floors:house.floors.length,
+          walkable:house.floors.map(grid=>grid.flat().filter(cell=>cell===0).length),
+          talismans:items.map(item=>({x:item.group.position.x,z:item.group.position.z,floor:item.group.position.floor,collected:item.collected})) },
         input: { stickX: stick.x, stickY: stick.y, lookPointer, stickPointer, runPointer, running, keyCount: keys.size },
         renderFrames, contextLost, navigationSearches: navigation.searches,
         savedRigidDraws, modalDepth, quality: settings.quality,
@@ -1205,7 +1341,7 @@
   });
   // Browser-verifiable invariants; no mutable game internals are exposed.
   const routes=items.every(i=>findPath(player,i.group.position).length>0)&&findPath(granny.root.position,player).length>0;
-  console.info('[KUCHIIE] WebGL ready. Rooms: 6, talismans: 3. All routes reachable:',routes);
+  console.info('[KUCHIIE] WebGL ready. Rooms: 18, floors: 2, talismans: 3. All routes reachable:',routes);
   if(!routes)console.error('[KUCHIIE] Navigation invariant failed.');
   updateIntro(0);updateTorch(1);requestAnimationFrame(frame);
 })();

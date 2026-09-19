@@ -39,6 +39,54 @@
       nav.move(walker, dx / length * Math.min(.09, length), dz / length * Math.min(.09, length), .25);
     }
     assert(Math.hypot(walker.x - goal.x, walker.z - goal.z) < .08, 'route can actually be traversed through corners');
+    const house = Core.createHouse(), houseNav = new Core.HouseNavigation(house);
+    const originalArea = 229;
+    const expandedArea = house.floors.reduce((sum, layer) => sum + layer.flat().filter(cell => cell === 0).length, 0);
+    assert(house.floors.length === 2 && expandedArea / originalArea > 2.85 && expandedArea / originalArea < 3.15, 'two-floor house provides approximately three times the original walkable area');
+    const entrance = { x:18, z:32, y:1.62, floor:0, eyeHeight:1.62 };
+    assert(houseNav.cellId({x:18,y:0,z:6,floor(){return this;}})>=0, 'Three.Vector3 floor method is not mistaken for floor metadata');
+    const unreachable = [];
+    house.floors.forEach((grid,floor)=>grid.forEach((row,z)=>row.forEach((cell,x)=>{
+      const target={x:x*house.cell,z:z*house.cell,floor};
+      if(cell===0 && houseNav.cellId(target)!==houseNav.cellId(entrance) && !houseNav.findPath(entrance,target).length)unreachable.push(target);
+    })));
+    assert(unreachable.length===0, 'every walkable cell on both floors is connected, including the room beside the stairs');
+    function walkRoute(start, target) {
+      const walker = { ...start }, route = houseNav.findPath(walker, target);
+      let frames = 0, changedFloor = false;
+      while(route.length && frames++ < 20000) {
+        const next = route[0], dx = next.x-walker.x, dz = next.z-walker.z, distance = Math.hypot(dx,dz);
+        if(distance < .04) { route.shift(); continue; }
+        const before = walker.floor;
+        houseNav.move(walker,dx/distance*Math.min(.07,distance),dz/distance*Math.min(.07,distance),.25);
+        changedFloor ||= before !== walker.floor;
+      }
+      assert(route.length === 0 && walker.floor === target.floor && Math.hypot(walker.x-target.x,walker.z-target.z)<.05, 'player/enemy can traverse full route to floor ' + (target.floor+1));
+      assert(Math.abs(walker.y-(target.floor*house.floorHeight+(walker.eyeHeight||0)))<.001, 'arrival height matches the destination floor');
+      return { walker, changedFloor };
+    }
+    for(const target of house.talismans) walkRoute(entrance,target);
+    const upstairs = walkRoute({x:18,z:6,floor:0},house.talismans[2]);
+    assert(upstairs.changedFloor, 'enemy reaches upstairs through the staircase');
+    const downstairs = walkRoute(upstairs.walker,{x:18,z:32,floor:0});
+    assert(downstairs.changedFloor, 'enemy can descend and return to the entrance');
+    walkRoute({...house.talismans[2],eyeHeight:1.62},entrance);
+    assert(!houseNav.clearSight({x:66,z:6,floor:0},{x:66,z:6,floor:1}), 'ceilings block cross-floor sight and interaction');
+    assert(houseNav.cellId({x:66,z:6,floor:0}) !== houseNav.cellId({x:66,z:6,floor:1}), 'AI goals distinguish vertically stacked cells');
+    assert(houseNav.clearSight({x:42,z:32,floor:0},{x:44,z:32,floor:0}), 'enemy can see and catch the player on the stair flight');
+    const underLanding = {x:52,z:32,floor:0};
+    houseNav.move(underLanding,-8,0);
+    assert(underLanding.floor===0 && underLanding.x>51, 'ground-floor corridor cannot teleport through the stair landing');
+    const stairSide = {x:44,z:32,floor:0};
+    houseNav.move(stairSide,0,-6);
+    assert(stairSide.z>31 && stairSide.floor===0, 'stair sides cannot be exited through walls');
+    const upperVoid = {x:38,z:32,floor:1};
+    houseNav.move(upperVoid,5,0);
+    assert(upperVoid.x<39 && upperVoid.floor===1, 'upper floor cannot step into the lower end of the stair void');
+    assert(houseNav.findPath(entrance,{x:-2,z:-2,floor:1}).length===0, 'multi-floor navigation rejects out-of-map destinations');
+    const beforeInvalid = {...entrance};
+    assert(!houseNav.move(beforeInvalid,NaN,0) && beforeInvalid.x===entrance.x, 'multi-floor movement rejects non-finite input');
+    assert(house.talismans.some(item=>item.floor===1), 'at least one talisman requires exploring upstairs');
     const energy = { value: 100, exhausted: false, sprint: false };
     for (let i = 0; i < 600 && !energy.exhausted; i++) Core.stepStamina(energy, energy.value, energy.exhausted, true, true, 1 / 60);
     assert(energy.exhausted && energy.value <= 1, 'sprint exhaustion latches');
@@ -52,12 +100,13 @@
     await until(() => $('loading').classList.contains('hidden'), 'initial render');
     assert(snapshot().savedRigidDraws > 0, 'rigid voxel parts are instanced without removing animated joints');
     const environment = snapshot().environment;
-    assert(new Set(environment.rooms).size === 6, 'six rooms have distinct environmental themes');
-    assert(environment.candles === 8 && environment.lanterns === 3 && environment.webs === 5, 'procedural candles, lanterns and cobwebs are present');
+    assert(new Set(environment.rooms).size === 18, 'eighteen rooms furnish the original house, east wing and upstairs');
+    assert(snapshot().map.floors===2 && snapshot().map.talismans[2].floor===1, 'production scene uses the expanded two-floor layout');
+    assert(environment.candles === 12 && environment.lanterns === 3 && environment.webs === 5, 'procedural candles, lanterns and cobwebs are present');
     assert(environment.rainVisible, 'window rain is present at high quality');
     const visual = snapshot().visual;
     assert(visual.atmosphere && visual.surfaceRelief && visual.cloth, 'high quality includes atmosphere, relief and woven clothing');
-    assert(visual.moonbeams === 6 && visual.mistLayers === 4 && visual.moonPools === 24, 'moonbeams and batched light patches cover all six rooms');
+    assert(visual.moonbeams === 12 && visual.mistLayers === 12 && visual.moonPools === 48, 'moonlight and mist extend through both floors and the east wing');
     const canvas = document.querySelector('#world canvas');
     canvas.requestPointerLock = () => Promise.resolve();
     $('sound-button').click(); $('sound-button').click();
@@ -133,6 +182,8 @@
     assert(snapshot().state === 'paused' && snapshot().input.keyCount === 0, 'focus loss pauses and clears held keyboard keys');
     $('home-button').click(); $('start-button').click();
     assert(snapshot().collected === 0 && snapshot().elapsed === 0 && snapshot().stamina === 100 && !snapshot().exhausted, 'retry resets all gameplay and stamina state');
+    assert(snapshot().player.floor===0 && snapshot().player.y===1.62 && snapshot().enemy.floor===0, 'retry restores both characters to the ground floor');
+    assert($('game-hud').querySelector('.objective .hud-eyebrow').textContent==='1F / 本館', 'HUD identifies the current floor and wing');
     key('keydown', 'KeyS'); key('keydown', 'ShiftLeft');
     await until(() => snapshot().player.z > 33.6, 'approach exit');
     key('keyup', 'KeyS'); key('keyup', 'ShiftLeft');
