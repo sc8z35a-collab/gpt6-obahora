@@ -105,6 +105,9 @@
     assert(environment.candles === 12 && environment.lanterns === 3 && environment.webs === 5, 'procedural candles, lanterns and cobwebs are present');
     assert(environment.rainVisible, 'window rain is present at high quality');
     const visual = snapshot().visual;
+    assert(visual.mapDetail.textureSize===512 && visual.mapDetail.filtered, '512px map surfaces use linear filtering');
+    assert(visual.mapDetail.shoji===24 && visual.mapDetail.joinery>300 && visual.mapDetail.props>3000, 'both floors include batched shoji and fine architectural details');
+    assert(visual.mapDetail.detailRelief, 'fine map materials have high-quality surface relief');
     assert(visual.atmosphere && visual.surfaceRelief && visual.cloth, 'high quality includes atmosphere, relief and woven clothing');
     assert(visual.moonbeams === 12 && visual.mistLayers === 12 && visual.moonPools === 48, 'moonlight and mist extend through both floors and the east wing');
     const canvas = document.querySelector('#world canvas');
@@ -161,6 +164,7 @@
     assert(snapshot().quality === 'low', 'quality can change while paused');
     assert(!snapshot().environment.rainVisible, 'low quality disables window rain');
     assert(!snapshot().visual.atmosphere && !snapshot().visual.surfaceRelief, 'lightweight mode disables extra atmosphere and surface relief');
+    assert(!snapshot().visual.mapDetail.detailRelief, 'low mode disables new detail surface relief');
     const reduced = $('reduce-effects'); reduced.checked = true; reduced.dispatchEvent(new Event('change'));
     await until(() => snapshot().environment.pendulumAngle === 0 && snapshot().environment.lanternAngle === 0, 'reduced motion applies while paused');
     assert(snapshot().environment.cameraRoll === 0 && snapshot().environment.handOffset === 0, 'reduced motion clears camera and hand sway immediately');
@@ -168,6 +172,7 @@
     assert(snapshot().visual.mistTime === 0, 'reduced motion resets mist even inside paused settings');
     quality.value = 'high'; quality.dispatchEvent(new Event('change'));
     assert(snapshot().visual.atmosphere && snapshot().visual.surfaceRelief, 'returning to high restores atmospheric and surface detail');
+    assert(snapshot().visual.mapDetail.detailRelief && snapshot().visual.mapDetail.props===visual.mapDetail.props, 'high mode restores relief without recreating fine geometry');
     assert(snapshot().visual.moonPools === visual.moonPools, 'quality changes reuse the existing moonlight instances');
     quality.value = 'low'; quality.dispatchEvent(new Event('change'));
     document.querySelector('[data-close="settings-modal"]').click();

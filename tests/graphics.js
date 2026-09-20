@@ -39,11 +39,12 @@
     const xWidth = document.querySelector('#world canvas').width;
     window.dispatchEvent(new Event('resize'));
     assert(document.querySelector('#world canvas').width === xWidth, 'resize preserves XHIGH resolution');
+    const firstLowFrame = snapshot().renderFrames;
     select('low');
     assert(document.body.dataset.graphics === 'low', 'switch to low works');
     assert(document.querySelector('#world canvas').width < xWidth, 'low mode restores lower rendering resolution');
     assert($('graphics-monitor').classList.contains('hidden'), 'XHIGH monitor hidden in low mode');
-    await wait(700);
+    await until(() => snapshot().renderFrames >= firstLowFrame + 2, 'first low-quality renders complete');
     const lowBaseline = snapshot().gpu;
     select('high');
     assert(document.body.dataset.graphics === 'high', 'high mode restored');
@@ -52,15 +53,33 @@
     await until(() => stats && stats.frames >= 3, 'recreated XHIGH pipeline');
     $('graphics-recover').click();
     assert(document.body.dataset.graphics === 'high', 'quick recovery button returns to high');
+    const secondLowFrame = snapshot().renderFrames;
     select('low');
-    await wait(700);
+    await until(() => snapshot().renderFrames >= secondLowFrame + 2, 'second low-quality renders complete');
     const lowAgain = snapshot().gpu;
-    assert(lowAgain.textures === lowBaseline.textures && lowAgain.geometries === lowBaseline.geometries, 'repeated XHIGH teardown restores texture and geometry counts');
-    assert(lowAgain.programs <= lowBaseline.programs + 2, 'repeated quality switches do not grow shader programs unboundedly');
     console.info('[GRAPHICS MEMORY] ' + JSON.stringify({ first: lowBaseline, second: lowAgain }));
+    assert(lowAgain.textures === lowBaseline.textures && lowAgain.geometries === lowBaseline.geometries, 'repeated XHIGH teardown restores texture and geometry counts');
+    // The first two cycles cover different routes (XHIGH→low and XHIGH→high→low).
+    // Compare identical warmed routes rather than treating initial shader variants as leaks.
+    let stable = lowAgain;
+    for (let cycle = 0; cycle < 2; cycle++) {
+      select('high'); stats = null;
+      select('xhigh'); $('xhigh-confirm').click();
+      await until(() => stats && stats.frames >= 2, 'repeat XHIGH render ' + cycle);
+      $('graphics-recover').click();
+      const lowFrame = snapshot().renderFrames;
+      select('low');
+      await until(() => snapshot().renderFrames >= lowFrame + 2, 'repeat low renders ' + cycle);
+      const current = snapshot().gpu;
+      console.info('[GRAPHICS STABILITY] ' + JSON.stringify({ cycle, previous: stable, current }));
+      assert(current.textures === stable.textures && current.geometries === stable.geometries && current.programs <= stable.programs,
+        'identical warmed quality cycle releases all GPU resources: ' + cycle);
+      stable = current;
+    }
     stats = null;
     select('xhigh'); $('xhigh-confirm').click();
     await until(() => stats && stats.frames >= 4, 'final XHIGH render');
+    assert(snapshot().visual.surfaceRelief && snapshot().visual.mapDetail.detailRelief, 'low-to-XHIGH restores all map detail relief');
     const reduced = $('reduce-effects'); reduced.checked = true; reduced.dispatchEvent(new Event('change'));
     assert(JSON.parse(localStorage.getItem('kuchiie-settings')).reduced, 'reduced-effects preference coexists with XHIGH');
     reduced.checked = false; reduced.dispatchEvent(new Event('change'));
