@@ -470,6 +470,15 @@
       this.originals.clear();
       this.upgraded.forEach(material => material.dispose());
       this.upgraded.clear();
+      // Scene materials also compile XHIGH-only light, shadow and tone-map variants.
+      // Release those program references without disposing their shared textures.
+      // Three.js lazily recompiles a disposed material when it is rendered again.
+      const sceneMaterials = new Set();
+      this.scene.traverse(object => {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach(material => { if (material?.isMaterial) sceneMaterials.add(material); });
+      });
+      sceneMaterials.forEach(material => material.dispose());
       if (this.floorOriginal) { Object.assign(this.floor.material, this.floorOriginal); this.floor.material.needsUpdate = true; }
       for (const light of this.extraLights || []) {
         this.scene.remove(light, light.target);

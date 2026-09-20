@@ -64,79 +64,148 @@
   const ambient = new T.AmbientLight(0x80918b, .22);
   scene.add(ambient);
 
-  // Deterministic, low-resolution textures keep the aesthetic genuinely voxel-like.
+  // Seeded 512px surfaces: fine fibres up close, mipmaps instead of noisy distant pixels.
   let seed = 881;
   const rand = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const SURFACE_SIZE = 512;
   function texture(type) {
-    const c = document.createElement('canvas'); c.width = c.height = 128;
-    const ctx = c.getContext('2d');
+    let surfaceSeed = 941 + [...type].reduce((sum, c) => sum + c.charCodeAt(0), 0);
+    const random = () => { surfaceSeed = (surfaceSeed * 1664525 + 1013904223) >>> 0; return surfaceSeed / 4294967296; };
+    const c = document.createElement('canvas'); c.width = c.height = SURFACE_SIZE;
+    const ctx = c.getContext('2d'), size = SURFACE_SIZE;
+    const fill = (color,x,y,w,h) => {ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
     if (type === 'wall') {
-      ctx.fillStyle = '#596055'; ctx.fillRect(0, 0, 128, 128);
-      for (let y = 0; y < 128; y += 4) for (let x = 0; x < 128; x += 4) {
-        const b = 65 + Math.floor(rand() * 30); ctx.fillStyle = `rgb(${b},${b+6},${b-3})`; ctx.fillRect(x,y,4,4);
+      fill('#858272',0,0,size,size);
+      // Tiny paper fibres, faded botanical diamonds and irregular water damage.
+      for(let i=0;i<20000;i++) fill(random()>.5?'#989281':'#736f61',random()*size,random()*size,1,1+random()*3);
+      ctx.lineWidth=1;
+      for(let y=12;y<326;y+=54)for(let x=0;x<size;x+=64) {
+        const cx=x+(y%108<54?0:32);
+        ctx.strokeStyle='rgba(62,70,55,.28)';ctx.beginPath();
+        ctx.moveTo(cx,y);ctx.bezierCurveTo(cx-19,y+13,cx-17,y+27,cx,y+43);
+        ctx.bezierCurveTo(cx+17,y+27,cx+19,y+13,cx,y);ctx.stroke();
+        ctx.strokeStyle='rgba(178,169,140,.4)';ctx.beginPath();ctx.moveTo(cx,y+9);ctx.lineTo(cx,y+34);ctx.stroke();
+        for(const sign of [-1,1]) {ctx.beginPath();ctx.ellipse(cx+sign*5,y+20,3,7,sign*.55,0,Math.PI*2);ctx.stroke();}
       }
-      for (let i = 0; i < 30; i++) {
-        const x = Math.floor(rand()*32)*4, y = Math.floor(rand()*20)*4;
-        ctx.fillStyle = `rgba(16,24,18,${.1+rand()*.2})`; ctx.fillRect(x,y,4+Math.floor(rand()*3)*4,12+rand()*70);
+      for(let i=0;i<22;i++) {
+        const x=random()*size,y=random()*310,r=12+random()*52;
+        const stain=ctx.createRadialGradient(x,y,1,x,y,r);
+        stain.addColorStop(0,'rgba(38,43,30,.16)');stain.addColorStop(1,'rgba(38,43,30,0)');
+        ctx.fillStyle=stain;ctx.fillRect(x-r,y-r,r*2,r*2);
       }
-      ctx.fillStyle = '#31392f';ctx.fillRect(0,82,128,46);
-      for(let x=0;x<128;x+=16){ctx.fillStyle='#495044';ctx.fillRect(x,85,2,43);ctx.fillStyle='#20291f';ctx.fillRect(x+14,85,2,43);}
-      ctx.fillStyle='#626553';ctx.fillRect(0,80,128,3);
-      // Faded wallpaper motifs, torn plaster and stepped hairline cracks.
-      for (let y = 8; y < 78; y += 18) for (let x = 5; x < 128; x += 16) {
-        ctx.fillStyle = '#737564'; ctx.fillRect(x, y, 2, 7); ctx.fillRect(x - 2, y + 2, 6, 2);
+      for(let i=0;i<6;i++) {
+        let x=random()*size,y=random()*240;
+        ctx.strokeStyle='rgba(39,40,32,.52)';ctx.beginPath();ctx.moveTo(x,y);
+        for(let j=0;j<10;j++){x+=(random()-.5)*12;y+=4+random()*9;ctx.lineTo(x,y);}ctx.stroke();
       }
-      for (let i = 0; i < 9; i++) {
-        let x = Math.floor(rand() * 60) * 2, y = Math.floor(rand() * 30) * 2;
-        ctx.fillStyle = '#888571'; ctx.fillRect(x, y, 6 + Math.floor(rand() * 5) * 2, 4 + rand() * 9);
-        for (let j = 0; j < 7; j++) {
-          ctx.fillStyle = '#303c32'; ctx.fillRect(x, y, 2, 4);
-          x += rand() > .5 ? 2 : -2; y += 3;
+      fill('#41463b',0,330,size,182);
+      for(let x=0;x<size;x+=64) {
+        fill('#2c332b',x,341,3,171);fill('#656451',x+4,341,2,171);
+        ctx.strokeStyle='#30392f';ctx.lineWidth=2;ctx.strokeRect(x+12,354,41,143);
+        ctx.strokeStyle='#565c49';ctx.strokeRect(x+14,356,37,139);
+        for(let k=0;k<45;k++)fill('rgba(163,148,114,.07)',x+random()*62,343,1,random()*169);
+      }
+      fill('#282f25',0,326,size,5);fill('#77715a',0,320,size,6);fill('#a49a77',0,320,size,1);
+    } else if (type === 'tatami' || type === 'rug') {
+      const tatami=type==='tatami';
+      fill(tatami?'#a39a6c':'#603e35',0,0,size,size);
+      for(let y=0;y<size;y+=3) {
+        fill(tatami?(y%9?'#b7ab78':'#807c57'):(y%9?'#795247':'#493c33'),0,y,size,1);
+        for(let x=0;x<size;x+=8)fill(tatami?'rgba(52,61,40,.23)':'rgba(216,177,109,.15)',x+(y%6),y,1,2);
+      }
+      if(!tatami) {
+        for(const x of [28,68,444,484])fill('#a18556',x,0,3,size);
+        ctx.strokeStyle='#ad9060';ctx.lineWidth=2;
+        for(let y=0;y<size;y+=64)for(const x of [48,256,464]) {
+          ctx.beginPath();ctx.moveTo(x,y+8);ctx.lineTo(x+12,y+30);ctx.lineTo(x,y+52);ctx.lineTo(x-12,y+30);ctx.closePath();ctx.stroke();
         }
       }
-    } else if (type === 'floor') {
-      ctx.fillStyle='#363a2f';ctx.fillRect(0,0,128,128);
-      for(let y=0;y<128;y+=16){
-        ctx.fillStyle=['#454537','#3c4032','#4a4a39','#383e32'][Math.floor(rand()*4)];ctx.fillRect(0,y,128,15);
-        for(let i=0;i<28;i++){ctx.fillStyle=rand()>.5?'#555240':'#292f25';ctx.fillRect(rand()*128,y+rand()*14,4+rand()*30,1);}
-        ctx.fillStyle='#22271f';ctx.fillRect((y%32===0?40:90),y,1,15);
+      for(let i=0;i<1700;i++)fill('rgba(34,39,28,.15)',random()*size,random()*size,1+random()*4,1);
+    } else if(type==='water') {
+      fill('#405951',0,0,size,size);
+      for(let i=0;i<42;i++) {
+        ctx.strokeStyle=i%3?'rgba(147,171,144,.13)':'rgba(18,36,33,.18)';
+        ctx.lineWidth=1.5;ctx.beginPath();
+        ctx.ellipse(size*.5,size*.5,18+i*8,10+i*4.3,.2,0,Math.PI*2);ctx.stroke();
       }
+    } else if(type==='paper') {
+      fill('#c0b593',0,0,size,size);
+      for(let i=0;i<14000;i++)fill(random()>.5?'rgba(87,72,44,.13)':'rgba(236,222,174,.24)',random()*size,random()*size,1,1+random()*4);
+      for(let i=0;i<24;i++)fill('rgba(84,72,45,.08)',random()*size,random()*size,random()*45,1);
     } else {
-      ctx.fillStyle='#332f25';ctx.fillRect(0,0,128,128);
-      for(let i=0;i<250;i++){ctx.fillStyle=rand()>.5?'#4a4030':'#26271e';ctx.fillRect(Math.floor(rand()*32)*4,0,2,128);}
-      ctx.strokeStyle='#171e18';ctx.lineWidth=3;ctx.strokeRect(10,9,47,110);ctx.strokeRect(68,9,47,110);
+      const floor=type==='floor',grain=type==='grain';
+      fill(grain?'#c5bc9d':'#675842',0,0,size,size);
+      for(let row=0;row<(floor?8:1);row++) {
+        const top=floor?row*64:0,height=floor?64:size;
+        if(floor)fill(['#665c46','#71614a','#5c5542','#79674c'][row%4],0,top,size,height);
+        for(let k=0;k<180;k++) {
+          const y=top+random()*height;
+          ctx.strokeStyle=grain?'rgba(66,55,38,.12)':(k%2?'rgba(28,29,22,.25)':'rgba(187,161,112,.2)');
+          ctx.lineWidth=.5+random();ctx.beginPath();ctx.moveTo(0,y);
+          ctx.bezierCurveTo(160,y+Math.sin(k)*4,340,y-Math.cos(k)*4,size,y);ctx.stroke();
+        }
+        if(floor) {
+          const join=(row%2?350:140);
+          fill('#292e25',0,top,size,2);fill('#918063',0,top+2,size,1);
+          fill('#2f3025',join,top,2,height);
+          for(const x of [join-7,join+9])for(const y of [top+9,top+53]) {
+            fill('#292d23',x,y,2,2);fill('#a18d69',x,y+2,2,1);
+          }
+        }
+      }
+      for(let i=0;i<2300;i++)fill(grain?'rgba(60,49,32,.1)':'rgba(186,157,112,.17)',random()*size,random()*size,2+random()*22,1);
     }
-    const tex = new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;tex.magFilter=T.NearestFilter;tex.minFilter=T.NearestMipmapNearestFilter;tex.wrapS=tex.wrapT=T.RepeatWrapping;
+    const tex = new T.CanvasTexture(c);tex.colorSpace=T.SRGBColorSpace;
+    tex.magFilter=T.LinearFilter;tex.minFilter=T.LinearMipmapLinearFilter;
+    tex.wrapS=tex.wrapT=T.RepeatWrapping;
+    tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+    tex.name='surface-'+type;
     return tex;
   }
-  // Separate linear height maps from sRGB albedo; pixel edges remain deliberate.
   function reliefMap(albedo) {
-    const c = document.createElement('canvas'); c.width = c.height = 128;
-    const ctx = c.getContext('2d'); ctx.drawImage(albedo.image, 0, 0);
-    const image = ctx.getImageData(0, 0, 128, 128);
-    for (let i = 0; i < image.data.length; i += 4) {
-      const value = Math.round(image.data[i] * .3 + image.data[i + 1] * .6 + image.data[i + 2] * .1);
-      image.data[i] = image.data[i + 1] = image.data[i + 2] = value;
+    const c=document.createElement('canvas');c.width=albedo.image.width;c.height=albedo.image.height;
+    const ctx=c.getContext('2d');ctx.drawImage(albedo.image,0,0);
+    const image=ctx.getImageData(0,0,c.width,c.height);
+    for(let i=0;i<image.data.length;i+=4) {
+      const value=Math.round(image.data[i]*.3+image.data[i+1]*.6+image.data[i+2]*.1);
+      image.data[i]=image.data[i+1]=image.data[i+2]=value;
     }
-    ctx.putImageData(image, 0, 0);
-    const map = new T.CanvasTexture(c);
-    map.wrapS = map.wrapT = T.RepeatWrapping;
-    map.magFilter = T.NearestFilter;
-    map.repeat.copy(albedo.repeat);
-    return map;
+    ctx.putImageData(image,0,0);
+    const map=new T.CanvasTexture(c);map.wrapS=map.wrapT=T.RepeatWrapping;
+    map.magFilter=T.LinearFilter;map.minFilter=T.LinearMipmapLinearFilter;
+    map.anisotropy=albedo.anisotropy;map.repeat.copy(albedo.repeat);return map;
   }
-  const wallTex = texture('wall'), woodTex = texture('wood');
-  const wallMat = new T.MeshStandardMaterial({map:wallTex,bumpMap:reliefMap(wallTex),bumpScale:.055,roughness:.94});
-  const floorTex=texture('floor'); floorTex.repeat.set(24,24);
-  const floorMat = new T.MeshStandardMaterial({map:floorTex,bumpMap:reliefMap(floorTex),bumpScale:.038,roughness:.68,metalness:.025});
-  const woodMat = new T.MeshStandardMaterial({map:woodTex,bumpMap:reliefMap(woodTex),bumpScale:.045,roughness:.79});
-  for (const material of [wallMat, floorMat, woodMat]) {
-    material.map.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+  const wallTex=texture('wall'),woodTex=texture('wood'),grainTex=texture('grain');
+  const wallMat=new T.MeshStandardMaterial({map:wallTex,bumpMap:reliefMap(wallTex),bumpScale:.028,roughness:.95});
+  const floorTex=texture('floor');floorTex.repeat.set(24,24);
+  const floorMat=new T.MeshStandardMaterial({map:floorTex,bumpMap:reliefMap(floorTex),bumpScale:.022,roughness:.73,metalness:.025});
+  const woodMat=new T.MeshStandardMaterial({map:woodTex,bumpMap:reliefMap(woodTex),bumpScale:.024,roughness:.8});
+  const grainBump=reliefMap(grainTex);
+  const detailSurfaces=[];
+  function surface(type,color,roughness,scale=.012) {
+    const map=texture(type),material=new T.MeshStandardMaterial({color,map,bumpMap:reliefMap(map),bumpScale:scale,roughness});
+    detailSurfaces.push([material,scale]);return material;
   }
-  const palette = {};
-  function mat(color, emissive=0) {
+  const tatamiMat=surface('tatami',0xffffff,.96);
+  const rugMat=surface('rug',0xffffff,.98);
+  rugMat.map.repeat.y=rugMat.bumpMap.repeat.y=.48/1.3;
+  const annexRugMat=rugMat.clone();annexRugMat.map=rugMat.map.clone();
+  annexRugMat.map.repeat.y=3.98/1.2;annexRugMat.bumpMap=reliefMap(annexRugMat.map);
+  detailSurfaces.push([annexRugMat,.012]);
+  const paperMat=surface('paper',0xffffff,.91);
+  const upperFloorMat=floorMat.clone();upperFloorMat.map=floorTex.clone();upperFloorMat.map.repeat.set(1.26,1.26);
+  upperFloorMat.bumpMap=reliefMap(upperFloorMat.map);detailSurfaces.push([upperFloorMat,.022]);
+  const timberColors=new Set([0x65563d,0x383a2a,0x403b2c,0x544b34,0x4e4834,0x353729,0x333a2b,0x4d4e38,0x424735,0x806c45,0x4e4a36,0x74715a,0x665740,0x554a36,0x454c3d]);
+  const palette={};
+  function mat(color,emissive=0) {
+    if(color && color.isMaterial)return color;
     const key=color+':'+emissive;
-    if(!palette[key]) palette[key]=new T.MeshLambertMaterial({color,emissive,emissiveIntensity: .8});
+    if(!palette[key]) {
+      if(!emissive && timberColors.has(color)) {
+        const material=new T.MeshStandardMaterial({color,map:grainTex,bumpMap:grainBump,bumpScale:.018,roughness:.86});
+        palette[key]=material;detailSurfaces.push([material,.018]);
+      } else palette[key]=new T.MeshLambertMaterial({color,emissive,emissiveIntensity:.8});
+    }
     return palette[key];
   }
   const boxGeo = new T.BoxGeometry(1,1,1);
@@ -159,7 +228,11 @@
   });
   const walls=new T.InstancedMesh(boxGeo,wallMat,wallTransforms.length);
   const dummy=new T.Object3D();
-  wallTransforms.forEach((p,i)=>{dummy.position.set(...p);dummy.scale.set(CELL,3.6,CELL);dummy.updateMatrix();walls.setMatrixAt(i,dummy.matrix);});
+  wallTransforms.forEach((p,i)=>{
+    dummy.position.set(...p);dummy.scale.set(CELL,3.6,CELL);dummy.updateMatrix();walls.setMatrixAt(i,dummy.matrix);
+    const patina=.87+((i*17)%13)*.01;
+    walls.setColorAt(i,new T.Color(patina,patina,patina*.98));
+  });
   walls.receiveShadow=true;walls.castShadow=true;scene.add(walls);
   const floor=box(38,.2,38,18,-.13,18,floorMat);floor.castShadow=false;
   box(38,.18,38,18,3.68,18,0x252c27);
@@ -168,18 +241,30 @@
   for(let z=0;z<house.height;z++)for(let x=19;x<house.width;x++) {
     if(stairOpening(x,z) && x < house.stairs.landing) continue;
     block(CELL,.18,CELL,x*CELL,3.68,z*CELL,0x252c27);
-    block(CELL,.2,CELL,x*CELL,house.floorHeight-.1,z*CELL,0x454537);
+    block(CELL,.2,CELL,x*CELL,house.floorHeight-.1,z*CELL,upperFloorMat);
   }
   box(38,.18,38,54,house.floorHeight+3.68,18,0x252c27);
   for(let step=0;step<house.stairs.steps;step++) {
     const depth=(house.stairs.endX-house.stairs.startX)/house.stairs.steps;
     const h=(step+1)*house.floorHeight/house.stairs.steps;
     const x=house.stairs.startX+(step+.5)*depth;
-    block(depth,h,1.96,x,h/2,32,0x544b34);
+    block(depth,h,1.96,x,h/2,32,woodMat);
     block(.07,.025,1.9,x-depth/2+.04,h+.01,32,0x9a8760);
     if(step%3===0)for(const z of [31.08,32.92]) {
       block(.055,.84,.055,x,h+.42,z,0x383a2a);
-      block(depth*3,.075,.075,x+depth,h+.84,z,0x806c45);
+      // Continuous sloping rails are added after the flight.
+    }
+  }
+  const railRun=house.stairs.endX-house.stairs.startX-.5;
+  const railRise=house.floorHeight*(house.stairs.steps-1)/house.stairs.steps;
+  for(const z of [31.08,32.92]) {
+    const rail=box(Math.hypot(railRun,railRise)+.18,.075,.075,44,
+      house.floorHeight/house.stairs.steps+.84+railRise/2,z,0x806c45);
+    rail.rotation.z=Math.atan2(railRise,railRun);
+    block(.09,.84,.09,house.stairs.endX-.25,house.floorHeight+.42,z,0x383a2a);
+    for(const x of [house.stairs.startX+.25,house.stairs.endX-.25]) {
+      const y=x<44?house.floorHeight/house.stairs.steps:house.floorHeight;
+      block(.12,.075,.12,x,y+.84,z,0x806c45);
     }
   }
   // Corridor ceiling beams, dado rails, chipped supports and copper pipes.
@@ -263,7 +348,7 @@
   }
   // A worn runner leads back to the exit, with missing threads rather than a smooth texture.
   for (let z=2;z<35;z+=.5) {
-    block(1.3,.009,.48,18,-.019,z,0x492e29);
+    block(1.3,.009,.48,18,-.019,z,rugMat);
     for (const x of [17.3,18.7]) block(.08,.012,.36,x,-.014,z,0x806c45);
     if (Math.round(z*2)%4===0) block(.22,.01,.12,18,-.009,z,0x777660);
   }
@@ -293,7 +378,7 @@
       block(1.45,1.3,.08,x,1.2,z-1.98,0x806c45);
       for(const dx of [-.45,0,.45]) {block(.23,.6,.12,x+dx,1.05,z-1.88,0x151e19);block(.04,.36,.02,x+dx,1.09,z-1.81,0xbdad7f);}
       candle(x-.8,.36,z-1.85);candle(x+.8,.36,z-1.85);
-      for(let k=0;k<3;k++){block(1.4,.025,2.7,x-1.5+k*1.5,.002,z+2.1,0x686853);block(.07,.03,2.7,x-2.18+k*1.5,.015,z+2.1,0x333b2c);}
+      for(let k=0;k<3;k++){block(1.4,.025,2.7,x-1.5+k*1.5,.002,z+2.1,tatamiMat);block(.07,.03,2.7,x-2.18+k*1.5,.015,z+2.1,0x333b2c);}
     }else if(index===1){ // Archive with irregular books and tied document boxes.
       for(const dx of [-2,2]){
         block(1.6,2.8,.5,x+dx,1.4,z-3.5,0x383a2a);
@@ -352,7 +437,7 @@
       if(!(side===0 && row===2)) {
         block(1.4,.55,.8,x-2,base+.28,z+2,0x403b2c);
         for(const dx of [-.45,.45])block(.08,.57,.82,x-2+dx,base+.29,z+2,0x806c45);
-        for(let k=0;k<3;k++)block(1.15,.025,2.6,x-1.2+k*1.2,base+.01,z,level?0x686853:0x535c4e);
+        for(let k=0;k<3;k++)block(1.15,.025,2.6,x-1.2+k*1.2,base+.01,z,tatamiMat);
       }
       if(index===1) { // Abandoned dining table with mismatched place settings.
         block(2.6,.14,1.4,x,base+.78,z+1.5,0x65563d);
@@ -399,7 +484,7 @@
     }
     for(let z=2;z<35;z+=4) {
       block(6.1,.22,.3,54,base+3.42,z,0x252c24);
-      block(1.2,.02,2.8,54,base+.01,z,level?0x333b2c:0x492e29);
+      block(1.2,.02,3.98,54,base+.01,z,annexRugMat);
     }
     for(const z of [9,27]) {
       const light=new T.PointLight(level?0x91b5b5:0xe8b981,18,15,2);
@@ -515,6 +600,145 @@
     const wx = rx > 18 ? 34.66 : 1.34;
     for (let j = -2; j <= 2; j++) block(.075, 1.85, .045, wx, 2, rz - 1 + j * .43, 0x4e4a36);
   }
+  // Fine, static craftsmanship. Geometry stays in shared instance batches; no new lights.
+  const mapDetail={rooms:18,shoji:0,joinery:0,props:0};
+  const detailStart=[...batches.values()].reduce((n,items)=>n+items.length,0);
+  // Trim follows exposed navigable wall faces, so doorways and the stair void stay open.
+  house.floors.forEach((grid,level)=>{
+    const base=level*house.floorHeight;
+    for(let z=1;z<house.height-1;z++)for(let x=1;x<house.width-1;x++) {
+      if(grid[z][x] || (z===house.stairs.z && x>=house.stairs.first-1 && x<=house.stairs.landing))continue;
+      for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        if(!grid[z+dz][x+dx])continue;
+        const wx=x*CELL+dx*.978,wz=z*CELL+dz*.978;
+        for(const [y,h] of [[.12,.2],[1.17,.055],[3.34,.12]]) {
+          block(dx?.06:2,h,dz?.06:2,wx,base+y,wz,0x4e4a36);
+        }
+        block(dx?.075:.07,3.23,dz?.075:.07,wx+(dz?.94:0),base+1.65,wz+(dx?.94:0),0x65563d);
+        mapDetail.joinery++;
+      }
+    }
+  });
+  // Inset door panels, brass hinges and an escutcheon at the original exit.
+  for(const x of [17.45,18.55])for(const y of [.58,1.6,2.62]) {
+    block(.85,.78,.04,x,y,34.885,0x383a2a);
+    for(const dx of [-.43,.43])block(.035,.82,.055,x+dx,y,34.85,0x806c45);
+    for(const dy of [-.4,.4])block(.9,.035,.055,x,y+dy,34.85,0x806c45);
+  }
+  for(const y of [.5,2.7])block(.14,.17,.07,16.96,y,34.82,0x806c45);
+  block(.19,.32,.04,18.76,1.45,34.81,0x806c45);
+  // Latticed transoms and recessed paper panels beside, never across, the openings.
+  for(const level of [0,1])for(const x of [51,57])for(const z of [6,18,30]) {
+    const base=level*house.floorHeight;
+    for(const dz of [-1.07,1.07])block(.25,3.28,.13,x,base+1.64,z+dz,0x65563d);
+    for(const y of [2.78,3.3])block(.26,.12,2.28,x,base+y,z,0x806c45);
+    for(let j=-4;j<=4;j++)block(.12,.44,.03,x,base+3.03,z+j*.22,0x65563d);
+    for(const dz of [-1.8,1.8]) {
+      const face=x===51?x+.032:x-.032;
+      block(.026,1.92,1.2,face,base+1.86,z+dz,paperMat);
+      for(let j=-2;j<=2;j++)block(.075,1.98,.034,face,base+1.86,z+dz+j*.27,0x383a2a);
+      for(const y of [.87,1.53,2.19,2.85])block(.08,.035,1.24,face,base+y,z+dz,0x383a2a);
+      mapDetail.shoji++;
+    }
+  }
+  function matEdges(x,y,z,w,d) {
+    for(const dx of [-w/2,w/2])block(.065,.018,d,x+dx,y,z,0x333b2c);
+    for(const dz of [-d/2,d/2])block(w,.018,.045,x,y,z+dz,0x806c45);
+  }
+  function cabinetHardware(x,y,z,w=1.2) {
+    block(.025,1.9,.025,x,y+1.16,z,0x151e19);
+    for(const dx of [-.12,.12]) {
+      block(.085,.17,.035,x+dx,y+1.18,z-.01,0x806c45);
+      block(.034,.075,.045,x+dx,y+1.18,z+.036,0x151e19);
+    }
+    for(const dx of [-w*.44,w*.44])for(const h of [.4,1.9])block(.08,.12,.035,x+dx,y+h,z,0x806c45);
+  }
+  function documentPile(x,y,z) {
+    for(let k=0;k<3;k++)block(.4,.015,.29,x+k*.013,y+k*.02,z,paperMat);
+    for(let k=0;k<6;k++)block(.24-(k%3)*.025,.003,.006,x,y+.05,z-.09+k*.033,0x535c4e);
+  }
+  roomCenters.forEach(([x,z],index)=>{
+    cabinetHardware(x,0,z-3.54);
+    const tx=x+(x>18?-2:2);
+    documentPile(tx+.1,1.19,z-1.78);
+    // Drawer, inset frame and pull; more than an unadorned table silhouette.
+    block(.9,.23,.055,tx,.93,z-1.565,0x383a2a);
+    block(.17,.035,.055,tx,.94,z-1.524,0x806c45);
+    if(index===0)for(let k=0;k<3;k++)matEdges(x-1.5+k*1.5,.027,z+2.1,1.4,2.7);
+    if(index===1)for(const dx of [-2,2])for(let row=0;row<4;row++)for(let k=0;k<8;k++) {
+      for(const h of [.49,.66])block(.1,.016,.012,x+dx-.65+k*.18,h+row*.65,z-2.883,0xbdad7f);
+    }
+    if(index===3) {
+      for(let k=0;k<3;k++) {block(.55,.7,.045,x+1.25+k*.73,.61,z-2.15,0x383a2a);block(.15,.04,.07,x+1.25+k*.73,.86,z-2.1,0x806c45);}
+      // Stove rings, kettle spout and pipe, with crisp silhouette detail.
+      for(const dx of [-.26,.26])block(.1,.1,.19,x+1.6+dx,1.39,z-2.6,0x151e19);
+      block(.12,1.8,.12,x+2.8,2.01,z-2.85,0x383a2a);
+      block(1.9,.065,.15,x+1.7,2.4,z-2.83,0x65563d);
+      for(let k=0;k<4;k++) {block(.035,.3,.035,x+1+k*.35,2.17,z-2.73,0x806c45);block(.13,.13,.04,x+1+k*.35,1.98,z-2.73,0x252c24);}
+    }
+    if(index===4) {
+      for(const dx of [-.916,.916])for(let k=0;k<12;k++)block(.016,.8,.016,x+2+dx,.43,z-.07+k*.195,0x383a2a);
+      for(const dx of [-.916,.916])for(const y of [.23,.64])block(.018,.035,2.36,x+2+dx,y,z+1,0x333a2b);
+      for(const dz of [-1.2,1.2])block(1.94,.07,.19,x+2,.88,z+1+dz,0x806c45);
+      for(const dx of [-.86,.86])block(.2,.07,2.6,x+2+dx,.88,z+1,0x806c45);
+      const waterMat=surface('water',0xffffff,.24,.008);waterMat.metalness=.15;
+      block(1.59,.009,2.08,x+2,.662,z+1,waterMat);
+      block(.82,1,.04,x-1,1.92,z-3.02,0x806c45);block(.72,.9,.02,x-1,1.92,z-2.99,0x617573);
+    }
+  });
+  for(const level of [0,1])for(const side of [0,1])for(const [row,z] of [6,18,30].entries()) {
+    const x=side?66:42,base=level*house.floorHeight,index=level*6+side*3+row;
+    if(!(side===0&&row===2))for(let k=0;k<3;k++)matEdges(x-1.2+k*1.2,base+.034,z,1.15,2.6);
+    documentPile(x+.3,base+1.15,z-2.35);
+    for(let shelf=0;shelf<4;shelf++)for(let k=0;k<6;k++) {
+      const bx=x+1.4+k*.22,by=base+.48+shelf*.6;
+      block(.11,.09,.014,bx,by+.015,z-2.992,paperMat);
+      for(const dy of [-.095,.13])block(.12,.016,.014,bx,by+dy,z-2.99,0xbdad7f);
+    }
+    if(side) {
+      // Outer-window transom, sill, paired curtain folds and small panes.
+      for(let k=-4;k<=4;k++)block(.07,1.7,.035,70.66,base+2,z-1+k*.25,0x383a2a);
+      for(const y of [1.55,2.1,2.6])block(.08,.035,2.3,70.64,base+y,z-1,0x383a2a);
+      block(.44,.09,2.55,70.62,base+1.07,z-1,0x65563d);
+      block(.07,.07,2.8,70.47,base+3.02,z-1,0x806c45);
+      for(const dz of [-1.3,1.3])block(.28,.09,.09,70.6,base+3.02,z-1+dz,0x383a2a);
+      for(const sign of [-1,1])for(let k=0;k<3;k++)block(.08,1.7-k*.13,.11,70.47-k*.018,base+2.16+k*.065,z-1+sign*(1.12-k*.1),paperMat);
+    }
+    if(index===0||index===5) { // Woven storage crates with corner ironwork.
+      for(let k=0;k<3;k++) {
+        const bx=x-2+k*.8,by=base+.34;
+        block(.68,.65,.72,bx,by,z-3.1,woodMat);
+        for(const dx of [-.27,.27])block(.045,.67,.75,bx+dx,by,z-3.1,0x383a2a);
+        block(.23,.16,.02,bx,by,z-2.726,paperMat);
+      }
+    } else if(index===1) {
+      for(const dx of [-1.5,1.5])for(const dz of [-.4,.6]) {
+        block(.54,.1,.56,x+dx,base+.43,z+1.5+dz,0x65563d);
+        block(.58,.7,.08,x+dx,base+.79,z+1.75+dz,0x383a2a);
+        for(const leg of [-.2,.2])block(.065,.43,.065,x+dx+leg,base+.215,z+1.5+dz,0x383a2a);
+      }
+    } else if(index===4) {
+      block(1.45,.82,.65,x-1.7,base+.42,z+2.4,0x383a2a);
+      block(1.5,.12,.75,x-1.7,base+.88,z+2.4,0x94907a);
+      block(.75,.02,.4,x-1.7,base+.949,z+2.4,0x333a2b);
+      block(.075,.3,.075,x-1.7,base+1.1,z+2.14,0x806c45);
+      block(.075,.075,.21,x-1.7,base+1.24,z+2.23,0x806c45);
+    } else if(index===7) {
+      // Sewing machine's flywheel, treadle and belt (shared geometry, no animation cost).
+      const wheel=new T.Mesh(new T.TorusGeometry(.19,.026,5,18),mat(0x806c45));
+      wheel.position.set(x+.65,base+1.55,z-2.5);wheel.rotation.y=Math.PI/2;scene.add(wheel);
+      block(.028,.93,.035,x+.65,base+1.02,z-2.35,0x383a2a);
+      block(.85,.055,.38,x,base+.19,z-2.4,0x252c24);
+      for(let k=0;k<8;k++)block(.015,.007,.38,x+.22+k*.075,base+1.183,z-2.05,0xbdad7f);
+    } else if(index===6) {
+      for(let k=0;k<4;k++){block(.6,.28,.45,x-2,base+.16+k*.29,z+2,woodMat);block(.25,.12,.015,x-2,base+.16+k*.29,z+2.23,paperMat);}
+    } else if(index===11) {
+      for(const dx of [-1.67,1.67])block(.17,3,.19,x+dx,base+1.65,z+3.5,0x65563d);
+      block(3.5,.18,.35,x,base+3.08,z+3.4,0x806c45);
+      for(let k=0;k<5;k++)block(.018,.58,.016,x-.28+k*.14,base+1.6,z+3.375,0xbdad7f);
+    }
+  }
+  mapDetail.props=[...batches.values()].reduce((n,items)=>n+items.length,0)-detailStart;
   batches.forEach((items,color)=>{
     const mesh=new T.InstancedMesh(boxGeo,mat(color),items.length);
     items.forEach((p,i)=>{dummy.scale.set(p[0],p[1],p[2]);dummy.position.set(p[3],p[4],p[5]);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
@@ -1176,8 +1400,8 @@
     flashlight.map = settings.quality === 'low' ? null : torchPattern;
     lightHalos.forEach(halo=>halo.visible=settings.quality !== 'low');
     // Disable derivative-based surface relief on battery-priority devices.
-    for (const [material, scale] of [[wallMat,.055],[woodMat,.045],[floorMat,.038]]) {
-      if (!extreme) material.bumpScale = settings.quality === 'low' ? 0 : scale;
+    for (const [material, scale] of [[wallMat,.028],[woodMat,.024],[floorMat,.022],...detailSurfaces]) {
+      if (!extreme || material !== floorMat) material.bumpScale = settings.quality === 'low' ? 0 : scale;
     }
     $('quality-select').value = settings.quality;
     document.body.dataset.graphics = settings.quality;
@@ -1325,6 +1549,7 @@
           mistLayers: atmosphere.children.filter(mesh => mesh.material === mistMaterial).length,
           moonPools: moonPools.count, mistTime: mistMaterial.uniforms.time.value,
           surfaceRelief: wallMat.bumpScale > 0,
+          mapDetail: {...mapDetail, textureSize:SURFACE_SIZE, filtered:wallTex.magFilter===T.LinearFilter, detailRelief:detailSurfaces.every(([m])=>m.bumpScale>0)},
           cloth: !!granny.skirtPieces[0].mesh.material.map,
           torchPattern: flashlight.map === torchPattern,
           lightHalos: lightHalos.filter(halo=>halo.visible).length,
