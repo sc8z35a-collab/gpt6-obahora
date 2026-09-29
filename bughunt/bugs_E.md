@@ -209,3 +209,19 @@
 - 場所: js/game.js:1177 goHome
 - 内容: goHome は `#game-message.visible` を外さない（HUDごと非表示なので見えないが、次回 startGame 直後の1フレームに前回メッセージが一瞬表示されうる）。またフォーカスを「家に入る」へ戻さないため、キーボード利用者は位置を失う。
 - 根拠: probe_E9 `home: {focus: BODY, msgVisible: true}`。
+
+### E-042 [重大度: Low] [種別: code] `aria-label` を role の無い div に付与（支援技術に無視される）
+- 場所: index.html:17 `<div id="world" aria-label="3Dホラーゲーム画面">`
+- 内容: ARIA 1.2 では generic 要素への aria-label は禁止/無視。canvas にも role・代替テキストが無く、ゲーム画面の存在がスクリーンリーダーに伝わらない。
+- 修正案: `role="img"` か `role="application"` を付ける。
+
+### E-043 [重大度: Low] [種別: code] 「調べる」プロンプト(#interaction-prompt)がライブリージョンでなく、護符・玄関に近づいても支援技術に通知されない
+- 場所: index.html:53
+- 内容: `#game-message` は role=status だが、行動可能を示す `#interaction-prompt`（「[ E ] 護符を取る」「封じられた玄関」）は aria-live 無し。表示/非表示は class 切替のみ。
+
+### E-044 [重大度: Low] [種別: visual] 遊び方の本文が開発履歴の表現「約3倍に広がった屋敷」になっている
+- 場所: index.html:61
+- 内容: 初めて遊ぶプレイヤーには「何の3倍か」が意味不明。旧版比の変更履歴（README の「探索面積は旧版の約3倍」）がそのままゲーム内説明に流用されている。
+
+---
+**E 進捗メモ（リーダー向け）**: E は有効 43 件（E-022 は撤回）。C=6, D=7 と合わせてチーム計 56 件（A/B は未投稿の時点）。使用ツール: `bughunt/tools/shot_E.cjs`, `multi_E.cjs`（NOSHOT=1 でスクショ省略・高速）, `fail_E.cjs`, `probe_E1..9.cjs`。
