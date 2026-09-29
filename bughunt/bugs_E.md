@@ -199,3 +199,13 @@
 - 場所: index.html:24
 - 内容: タイトル画面でロゴをクリック/Enter すると単にページ全体をリロード（Three.js 再初期化・約数秒のローディング）。SPA 内の「ホーム」の意味にならず、XHIGH も解除される（restoreXhigh）。Tab 順の先頭にあるため、キーボード利用者が最初に Enter を押すとリロードになる。
 - 根拠: probe_E2 tabOrder 先頭が `brand`。
+
+### E-040 [重大度: Low] [種別: code] 一時停止中に設定を背景クリックで閉じるとフォーカスが消失
+- 場所: js/game.js:1377（backdrop click → closeModal）/ 1371
+- 内容: 一時停止→設定→背景クリックで閉じると activeElement が空（BODY）。「設定」ボタン（modalFocus）へ戻るはずが、クリックでフォーカスが外れた後に復元判定が走るため戻らない。以降 Tab で一時停止モーダル外へ出られる。
+- 根拠: probe_E9 `afterSettingsBackdrop: ["paused", false, ""]`。
+
+### E-041 [重大度: Low] [種別: code] 「タイトルに戻る」後もフォーカスが BODY、ゲームメッセージの visible クラスが残ったまま
+- 場所: js/game.js:1177 goHome
+- 内容: goHome は `#game-message.visible` を外さない（HUDごと非表示なので見えないが、次回 startGame 直後の1フレームに前回メッセージが一瞬表示されうる）。またフォーカスを「家に入る」へ戻さないため、キーボード利用者は位置を失う。
+- 根拠: probe_E9 `home: {focus: BODY, msgVisible: true}`。
