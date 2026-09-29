@@ -114,6 +114,5 @@
 - 内容: `integrity`/`crossorigin` 属性が無く、CDN 改ざん時に任意コード実行。jsDelivr 障害時はゲームが一切起動しない（ローカルコピー無し）。README も「初回読み込みにネット接続が必要」。three.min.js は r160 で削除予定の非推奨ビルドで、コンソールに毎回 deprecation 警告。
 - 根拠: コンソール `Scripts "build/three.js" and "build/three.min.js" are deprecated with r150+`。
 
-### E-022 [重大度: Low] [種別: system] favicon 未設定で毎回 /favicon.ico が 404（コンソールに `Failed to load resource`）
-- 場所: index.html head（`<link rel=icon>` 無し）
-- 根拠: 全ての実行で `error: Failed to load resource: net::ERR_FAILED/404` が1件出る。http.server ログで /favicon.ico 404。
+### E-022 【撤回】favicon 404 は誤報
+- 当初「Failed to load resource」を favicon 404 と判断したが、再検証の結果これは調査ツール側で Google Fonts を route.abort したことによるもの。favicon リクエストは発生しておらず、サイトのバグではない。件数から除外する。
