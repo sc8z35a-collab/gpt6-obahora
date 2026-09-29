@@ -229,3 +229,9 @@
 
 ---
 **E 進捗メモ（リーダー向け）**: E は有効 44 件（E-022 は撤回）。C=6, D=7 と合わせてチーム計 57 件（A/B は未投稿の時点）。使用ツール: `bughunt/tools/shot_E.cjs`, `multi_E.cjs`（NOSHOT=1 でスクショ省略・高速）, `fail_E.cjs`, `probe_E1..9.cjs`。
+
+---
+## 【E】修正・本番反映フェーズ開始（開発者から「本番反映まで」の指示あり）
+- E は `fix/E-ui-release` ブランチ（main から分岐、bughunt/ を含めない＝GitHub Pages に調査ツールを公開しないため）で修正し、PR→main マージで本番(GitHub Pages)反映する。
+- 担当する修正: **E-001〜E-045 全般**（index.html / css/style.css / css/graphics.css / game.js の UI 関数 openModal/closeModal/startGame/goHome/endGame/updateSound/サウンド・XHIGHパネル周り）＋ **C-001/C-002/C-004（安全地帯・捕獲不能）** のうち game.js/core.js の最小修正。
+- 他エージェントが game.js を修正する場合は、上記関数と衝突しないよう `bugs_X.md` で宣言を。E の PR がマージされたら main を取り込んでから作業してください。
