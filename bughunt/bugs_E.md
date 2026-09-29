@@ -116,3 +116,43 @@
 
 ### E-022 【撤回】favicon 404 は誤報
 - 当初「Failed to load resource」を favicon 404 と判断したが、再検証の結果これは調査ツール側で Google Fonts を route.abort したことによるもの。favicon リクエストは発生しておらず、サイトのバグではない。件数から除外する。
+
+### E-023 [重大度: Medium] [種別: visual] XHIGH の描画モニタがタイトル見出し・縦書き座標に重なる（スマホ）
+- 場所: css/graphics.css `@media(max-width:600px){.graphics-monitor{top:91px;right:6%;width:160px}}`
+- 内容: 320x568 で XHIGH 有効時、モニタ(x141〜301,y91〜166)が章見出し「第一夜 / THE HOUSE…」(y125〜134)と h1「おばあちゃんが、」の右半分、縦書き座標(y102〜181)を覆い隠す。
+- 根拠: probe_E4 実測＋スクショ（見出し "THE HOUSE" がモニタの下で途切れる）。
+
+### E-024 [重大度: Medium] [種別: visual] プレイ中の XHIGH モニタが一時停止ボタンの直下を覆い、画面右上 1/3 を占有（390px）
+- 場所: css/graphics.css `.playing .graphics-monitor{top:86px;right:23px;width:145px}`
+- 内容: 390x844 で モニタ x222〜367,y86〜198。幅の37%を占め、視界をふさぐうえ「高画質に戻す」ボタンが pointer-events:auto でタッチの視点スワイプ領域(右側)を奪う。pointerdown ハンドラは `button` 上では視点操作を開始しない（game.js:1479）。
+- 根拠: probe_E5 実測。
+
+### E-025 [重大度: Low] [種別: code] SwiftShader 等で 0.3 FPS でも「低FPS」通知は出るが自動では戻らず、モニタの「0.3 FPS」表記が小数（整数前提UI）
+- 場所: js/game.js 1339-1347
+- 内容: XHIGH有効直後のタイトル画面（プレイ前）でも "0.3 FPS / 低FPS：高画質への変更を推奨" が表示される。タイトル画面はゲーム中ではないのに警告が出る（`frozen` は intro+modal のみ）。
+- 根拠: 320x568 スクショ。
+
+### E-026 [重大度: Medium] [種別: visual] 「遊び方」モーダルがスマホで縦に収まらず、閉じるボタン（わかった）までスクロールが必要／スクロールできることが分からない
+- 場所: css/style.css `.modal-card{max-height:100%;overflow:auto}`
+- 内容: 320x568 で card scrollHeight 791 > clientHeight 530。スクロールバーやフェード等の手掛かりが無く、「03/04」の本文が画面下で切れる。390x844 の設定モーダル＋XHIGHパネルでも 966 > 806。
+- 根拠: probe_E4/E5 実測＋スクショ。
+
+### E-027 [重大度: Low] [種別: visual] 遊び方モーダルを開くと × ボタンに大きなフォーカス枠が表示される（マウス/タップ操作でも）
+- 場所: js/game.js:1365 `querySelector('button').focus()` + css `button:focus-visible{outline:2px solid;outline-offset:5px}`
+- 内容: プログラムによる focus() が :focus-visible を発火させ、タッチで開いても × に橙色の四角枠が出る（スクショで確認）。視覚的ノイズ。
+- 修正案: `focus({focusVisible:false})` またはダイアログ見出しへ tabindex=-1 でフォーカス。
+
+### E-028 [重大度: Low] [種別: visual] タッチ端末で XHIGH を了承しても「G ↘」キーボードショートカット表記が表示される
+- 場所: index.html:69 `#graphics-recover` 内 `<span>G ↘</span>`
+- 内容: キーボードの無いスマホでも "G" ショートカットが表示される。desktop-hint 同様 pointer:coarse で隠すべき。
+- 根拠: 320x568 touch スクショ。
+
+### E-029 [重大度: Low] [種別: code] OS の「視差効果を減らす(prefers-reduced-motion)」を一切参照しない
+- 場所: js/game.js（matchMedia は pointer:coarse のみ）, css（@media prefers-reduced-motion 無し）
+- 内容: 点滅・揺れ抑制は手動設定のみ。初回起動時からジャンプスケアと画面揺れが有効で、`.loading-dots` の点滅アニメ等も止まらない。注意書きで点滅に言及しているのに OS 設定を尊重しない。
+- 根拠: `grep -n "prefers-reduced\|matchMedia"` → pointer:coarse の1件のみ。
+
+### E-030 [重大度: Low] [種別: visual] `.hidden` 解除時 #loading の opacity が1 に戻らないケース（通常フロー）でのフェード不整合
+- 場所: js/game.js 1334-1336 と 1527
+- 内容: 初回3フレームで opacity 0 → 750ms 後 hidden。750ms 以内にコンテキスト喪失が起きると `!contextLost` 判定で hidden にならないのは良いが、webglcontextlost 側は opacity=1 を設定している一方、`transition:opacity 1s` のためエラー文が1秒かけてフェードインし、その間は背景が透けて読めない。
+- 根拠: コード読解（style.css `#loading{transition:opacity 1s}`）。
