@@ -1,0 +1,27 @@
+module.exports = async (p) => {
+  const tag = process.env.TAG || 'x';
+  const shot = n => p.screenshot({ path: `/tmp/e_${tag}_${n}.png` });
+  const r = {};
+  const rect = s => p.evaluate(s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.top), Math.round(b.right), Math.round(b.bottom), getComputedStyle(e).display]; }, s);
+  for (const s of ['.site-header', '.brand', '.header-actions', '#sound-button', '#settings-button', '.hero-content', 'h1', '.hero-action', '#start-button', '#howto-button', '.audio-advice', '.scene-caption', '.scene-coordinate', '.landing-footer', '.feature-list', '.landing-footer p', '.vertical-label']) r[s] = await rect(s);
+  r.scroll = await p.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.scrollHeight, innerWidth, innerHeight]);
+  r.fonts = await p.evaluate(() => getComputedStyle(document.querySelector('.chapter')).fontSize);
+  await p.click('#howto-button'); await p.waitForTimeout(400); await shot('howto');
+  r.howtoCard = await rect('#howto-modal .modal-card');
+  r.howtoScroll = await p.evaluate(() => { const c = document.querySelector('#howto-modal .modal-card'); return [c.scrollHeight, c.clientHeight]; });
+  r.focusAfterHowto = await p.evaluate(() => document.activeElement.outerHTML.slice(0, 80));
+  await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  r.focusAfterClose = await p.evaluate(() => document.activeElement.outerHTML.slice(0, 80));
+  await p.click('#settings-button'); await p.waitForTimeout(400); await shot('settings');
+  r.settingsScroll = await p.evaluate(() => { const c = document.querySelector('#settings-modal .modal-card'); return [c.scrollHeight, c.clientHeight]; });
+  await p.selectOption('#quality-select', 'xhigh'); await p.waitForTimeout(400); await shot('xhighconsent');
+  r.qsel = await p.evaluate(() => document.querySelector('#quality-select').value);
+  await p.click('#xhigh-cancel'); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  await p.click('#start-button'); await p.waitForTimeout(3500); await shot('play');
+  for (const s of ['#game-hud', '.hud-top', '.objective', '#pause-button', '#game-message', '.hud-bottom', '#desktop-hint', '#joystick-zone', '.touch-actions', '#interact-button', '#run-button', '#touch-look-hint', '#elapsed-time', '.stamina-track']) r['play ' + s] = await rect(s);
+  r.snap = await p.evaluate(() => { const s = KuchiieDiagnostics.snapshot(); return { state: s.state, player: s.player, sound: document.querySelector('#sound-label').textContent }; });
+  await p.evaluate(() => document.querySelector('#pause-button').click()); await p.waitForTimeout(500); await shot('pause');
+  r.pauseFocus = await p.evaluate(() => document.activeElement.id);
+  await p.click('#pause-settings-button'); await p.waitForTimeout(400); await shot('pausesettings');
+  return r;
+};
