@@ -156,3 +156,27 @@
 - 場所: js/game.js 1334-1336 と 1527
 - 内容: 初回3フレームで opacity 0 → 750ms 後 hidden。750ms 以内にコンテキスト喪失が起きると `!contextLost` 判定で hidden にならないのは良いが、webglcontextlost 側は opacity=1 を設定している一方、`transition:opacity 1s` のためエラー文が1秒かけてフェードインし、その間は背景が透けて読めない。
 - 根拠: コード読解（style.css `#loading{transition:opacity 1s}`）。
+
+### E-031 [重大度: Medium] [種別: code] 音量0を保存した状態で開始すると「SOUND ON」表示なのに無音。サウンドボタンをONにしても音量0のまま
+- 場所: js/game.js:1146 `if(!soundPreferenceTouched)soundOn=true;` / 1378 sound-button / 1049 `master.gain = soundOn?settings.volume:0`
+- 内容: 設定で音量0→リロード→「家に入る」で soundOn=true となりラベル「SOUND ON」・aria「サウンドをオフにする」になるが gain=0 で無音。ユーザーがサウンドボタンで ON にしても volume は 0 のまま復帰しない（音量スライダーは input で soundOn=volume>0 と連動しているのに、逆方向の連動が無い）。
+- 根拠: probe_E7: before `[SOUND OFF, 0]` → 開始後 `[SOUND ON, 0, volume 0]`; ボタン操作後も `[SOUND ON, volume 0]`。
+
+### E-032 [重大度: Medium] [種別: visual] プレイ中はヘッダーが非表示なので、ゲーム中にサウンドON/OFFを切り替える手段が無い
+- 場所: css/style.css `.playing .site-header{display:none}` / index.html:27
+- 内容: サウンドボタンはヘッダーにしか無く、一時停止中も `.playing` クラスが残るため非表示（probe_E7: 一時停止中 `.site-header display:none`）。一時停止→設定の音量スライダーでしか変えられず、ミュート状態も確認できない。README「ゲーム中の音量は一時停止→設定から変更できます」とは合うが、音量0↔ONのラベル不一致（E-031）と組み合わせて状態が分からない。
+
+### E-033 [重大度: Medium] [種別: visual] タップ領域が小さすぎる（設定ボタン 16×32px、サウンド 79×32px）
+- 場所: css/style.css `.icon-button{padding:8px 0}` / index.html:29
+- 内容: 390x844 実測で `#settings-button` 16×32px、PCでも 18×34px。推奨 44×44px（Apple HIG / WCAG 2.5.5）を大幅に下回る。スマホでは設定を開くのが困難、隣のサウンドボタンの誤タップも起きやすい。
+- 根拠: probe_E6 targets 実測。
+
+### E-034 [重大度: Low] [種別: visual] 一時停止ボタンのアイコンに全角ローマ数字「Ⅱ」を使用（フォント依存で「2」に見える）
+- 場所: index.html:51 `aria-label="一時停止">Ⅱ</button>`
+- 内容: U+2161 ROMAN NUMERAL TWO。セリフ体では上下にセリフが付き「II」＝ローマ数字の2として描画され、一時停止記号(⏸)に見えない端末がある。スクショでも Ⅱ にセリフ線が見える。
+- 修正案: SVG か CSS の2本線で描く。
+
+### E-035 [重大度: Low] [種別: system] README とマップ仕様の不一致: 「2フロア×19行×37列」なのに屋敷座標/東棟判定の説明と HUD 判定境界が不一致（x>36 と x>37）
+- 場所: js/game.js:1096 `player.x > 36 ? '1F / 東棟'` と 1205 `player.x>37 ? 'east'`
+- 内容: HUD の現在地表示は x>36 で「1F / 東棟」、初回進入メッセージは x>37 で東棟判定。x=36〜37 の1mの帯では HUD が東棟なのに到達メッセージが出ない（境界不一致）。README 上の「本館・東棟」の区切りも未定義。
+- 根拠: コード読解（2か所の閾値が異なる）。DUP? (A/B 範囲)
