@@ -58,3 +58,62 @@
 ### E-010 [重大度: Low] [種別: system] `maximum-scale=1` でピンチズームを禁止（WCAG 1.4.4）
 - 場所: index.html:5
 - 内容: 上記の 6〜8px の文字を拡大して読むこともできない。モーダルの注意書きも拡大不可。
+
+### E-011 [重大度: Medium] [種別: visual] PC HUD: 操作ヒント(#desktop-hint)が STAMINA ゲージ/経過時間と重なる（狭い幅）
+- 場所: css/style.css `#desktop-hint{bottom:32px;left:50%;transform:translateX(-50%)}` と `.hud-bottom{bottom:35px}`
+- 内容: 全PCサイズで desktop-hint が hud-bottom の帯(同じ高さ)に入る。480x720 では「W A S D 移動」がスタミナゲージ(幅130px)の線と重なって描画、1024x600 でも帯内。ウィンドウ幅<≈620pxで常に文字と線が交差。
+- 根拠: multi_E 重なり判定 `.hud-bottom x #desktop-hint`（1280/1024/480/1920全て）。480x720 スクショ拡大で文字を横線が貫通。
+
+### E-012 [重大度: Medium] [種別: code] ゲーム終了画面(捕獲/脱出)に遷移してもフォーカスが移動しない（キーボード/SR利用者が気付けない）
+- 場所: js/game.js 1178-1185 endGame
+- 内容: endGame は `#end-screen` を表示するだけで retry-button に focus しない。`role`/`aria-live` も無い。activeElement は BODY のまま。スクリーンリーダーには「みつけた」も結果も読まれない。
+- 根拠: probe_E2: 捕獲後 `endFocus = BODY#`、Tab 1回目で retry-button。
+
+### E-013 [重大度: Medium] [種別: code] モーダル表示中も背景(タイトル/HUD)が inert/aria-hidden にならない
+- 場所: js/game.js openModal 1360-1366 / index.html
+- 内容: aria-modal="true" と独自の Tab トラップのみで、`#landing` 等に inert を付けない。フォーカスが body に落ちた状態から Shift+Tab や、スクリーンリーダーの仮想カーソルでは背景の「家に入る」等へ到達できる。Tab トラップは activeElement が最初/最後の要素のときしか働かない。
+- 根拠: probe_E3: `#landing.inert=false, aria-hidden=null`（設定モーダル表示中）。
+
+### E-014 [重大度: Medium] [種別: code] 「家に入る」をキーボード(Enter)で開始するとフォーカスが隠れたボタンに残り、Space/Enter が無視される/プレイ中にボタン再発火の恐れ
+- 場所: js/game.js startGame 1131-1148
+- 内容: startGame は `#landing` を hidden にするが、フォーカスを移さない。hidden 化で activeElement は BODY に落ちる（Chromium）。ゲーム中の HUD に focus 可能な操作要素が一時停止ボタンのみで、ポインターロックも Enter 起動では要求されるがフォーカス管理が無い。加えて `keydown` で Space は preventDefault されるが、フォーカスが一時停止ボタンに移ると（Tab）Space/Enter で pause が発火し E-015 の問題へ繋がる。
+- 根拠: probe_E3: Enter 開始後 activeElement=BODY。
+
+### E-015 [重大度: Low] [種別: code] 一時停止モーダルから Esc 2回で再開した後、フォーカスがどこにもない
+- 場所: js/game.js closeModal 1367-1372（pause-modal の modalFocus は開いた時の BODY）
+- 内容: 一時停止→設定→Esc(設定閉じ)→Esc(再開) で activeElement が空（BODY）。一時停止ボタンに戻らない。再度 Tab すると HUD の一時停止ボタン以外に飛ぶ可能性。
+- 根拠: probe_E3: `afterEsc2 = ["playing", ""]`。
+
+### E-016 [重大度: Medium] [種別: code] HUD情報がスクリーンリーダーに提供されない（経過時間・スタミナ・護符数・一時停止ボタン名）
+- 場所: index.html:51-57
+- 内容: スタミナは `div` の幅だけ（role=progressbar/aria-valuenow 無し）、護符の「符 符 符」は収集状態を色でのみ表現（色覚依存、aria無し）、経過時間に label 無し。一時停止ボタンのテキストは "Ⅱ"(ローマ数字2) で aria-label はあるが、ゲーム中の `#game-message` role=status は8秒毎に同じ内容の再読み上げなど。
+- 根拠: probe_E3 hudLabels: time/stamina/keys 全て null。
+
+### E-017 [重大度: Medium] [種別: system] js/game.js 読み込み失敗時、ローディング画面が「家の記憶を辿っています…」のまま永久に止まる（再読み込みボタンも出ない）
+- 場所: index.html:74（script に onerror 無し）/ js/game.js 冒頭のみがエラー表示を担当
+- 内容: game.js 自体が 404/通信断だとエラー処理コードが存在しないため、点滅する「…」のまま無限待ち。
+- 根拠: fail_E.cjs で game.js を abort → `text: 家の記憶を辿っています…, reload btn width 0`。
+
+### E-018 [重大度: Low] [種別: visual] core.js 読み込み失敗時のエラー表示に再読み込みボタンが無く、レイアウトも横並びのまま
+- 場所: js/game.js:15（Core 無し分岐は reload-button を表示しない）
+- 内容: 他の失敗分岐（THREE無し・WebGL無し）はボタンを出すが、Core 無しは文言だけ。「再読み込みしてください」と言いながらボタンが無い。`#loading:has(#reload-button:not(.hidden))` 依存のため flex-direction も row のままでロゴと文が横に並ぶ。
+- 根拠: fail_E.cjs nocore → `btn width 0, flex row`。
+
+### E-019 [重大度: Low] [種別: system] graphics.js が読み込めなくても何の通知も無く、設定の「XHIGH」選択肢はそのまま表示される
+- 場所: index.html:73 / js/game.js applyQuality 1386-1389
+- 内容: graphics.js 失敗時はゲームは動くが、XHIGH を選んで了承して初めて「WebGL 2対応ブラウザでお試しください」と誤った原因（WebGL2非対応）を表示する。実際はスクリプト読込失敗。
+- 根拠: fail_E.cjs nographics で起動成功を確認＋コード読解（`!graphics` と `!graphics.enable()` を同一メッセージで処理）。
+
+### E-020 [重大度: Low] [種別: visual] WebGL無効環境でもタイトル（家に入る/遊び方）がローディング幕の下に完全描画され、幕は不透明で閉じられない
+- 場所: js/game.js:50-52
+- 内容: エラー画面はOKだが、#loading を閉じる手段が無く「遊び方」や注意書きを読むこともできない。またエラー文言が「Safari / Chromeの最新版」を案内するだけで、ハードウェアアクセラレーション無効化など主因を示さない（今回の再現はChromiumの最新版で発生）。
+- 根拠: fail_E.cjs nogl。
+
+### E-021 [重大度: Low] [種別: code] Three.js を CDN から SRI(integrity)無し・バージョン固定のみで読み込み、フォールバック無し
+- 場所: index.html:71
+- 内容: `integrity`/`crossorigin` 属性が無く、CDN 改ざん時に任意コード実行。jsDelivr 障害時はゲームが一切起動しない（ローカルコピー無し）。README も「初回読み込みにネット接続が必要」。three.min.js は r160 で削除予定の非推奨ビルドで、コンソールに毎回 deprecation 警告。
+- 根拠: コンソール `Scripts "build/three.js" and "build/three.min.js" are deprecated with r150+`。
+
+### E-022 [重大度: Low] [種別: system] favicon 未設定で毎回 /favicon.ico が 404（コンソールに `Failed to load resource`）
+- 場所: index.html head（`<link rel=icon>` 無し）
+- 根拠: 全ての実行で `error: Failed to load resource: net::ERR_FAILED/404` が1件出る。http.server ログで /favicon.ico 404。
