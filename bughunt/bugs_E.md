@@ -180,3 +180,22 @@
 - 場所: js/game.js:1096 `player.x > 36 ? '1F / 東棟'` と 1205 `player.x>37 ? 'east'`
 - 内容: HUD の現在地表示は x>36 で「1F / 東棟」、初回進入メッセージは x>37 で東棟判定。x=36〜37 の1mの帯では HUD が東棟なのに到達メッセージが出ない（境界不一致）。README 上の「本館・東棟」の区切りも未定義。
 - 根拠: コード読解（2か所の閾値が異なる）。DUP? (A/B 範囲)
+
+### E-036 [重大度: Medium] [種別: visual] html/body が overflow:hidden 固定のため、高さの足りない画面ではタイトルの内容がスクロールで救えない
+- 場所: css/style.css `html,body{overflow:hidden}` + `#landing{height:100%}` + 全要素 absolute 配置
+- 内容: E-002 のように要素が画面外/重なりになっても、ページはスクロール不能で、PCの短いウィンドウ(900x420)でも `.hero-content x .landing-footer` が発生（PC幅でも再現、タッチ限定ではない）。ブラウザのツールバー表示で高さが縮むモバイルでも同様。
+- 根拠: multi_E NOSHOT 900x420 → hits `.hero-content x .landing-footer`。
+
+### E-037 [重大度: Low] [種別: visual] 開始メッセージが PC の低い窓(601x500 など)でも護符カウンタ直下に接触
+- 場所: css/style.css `#game-message{top:22%}`(max-height:650px)
+- 内容: 601x500 で game-message y=110〜148、objective 下端 y=111 と接触/重なり（`.objective x #game-message`）。E-003 の PC 版（DUP寄り、条件が異なるため別記）。
+
+### E-038 [重大度: Low] [種別: visual] 結果画面タイトルが字間 10px / 6px の「み つ け た。」で、元テキストに全角スペースを入れた上に letter-spacing も付与
+- 場所: js/game.js:1181 `'み つ け た。'`, `'夜 が 明 け る。'` / css `#end-screen h2{letter-spacing:10px}`
+- 内容: 文字間にスペース文字＋letter-spacing の二重指定のため、スクリーンリーダーは「み、つ、け、た」と1字ずつ読み上げ、コピーすると空白入り文字列になる。視覚上も 320px 幅で「み つ け た。」がほぼ全幅（スクショ）。「夜 が 明 け る。」は 320px で折り返しの恐れ。
+- 修正案: 空白を削除し CSS の letter-spacing のみで表現。
+
+### E-039 [重大度: Low] [種別: code] ブランドロゴ `href="./"` がゲーム状態を破棄してページ再読み込みになる（タイトル画面でも）
+- 場所: index.html:24
+- 内容: タイトル画面でロゴをクリック/Enter すると単にページ全体をリロード（Three.js 再初期化・約数秒のローディング）。SPA 内の「ホーム」の意味にならず、XHIGH も解除される（restoreXhigh）。Tab 順の先頭にあるため、キーボード利用者が最初に Enter を押すとリロードになる。
+- 根拠: probe_E2 tabOrder 先頭が `brand`。

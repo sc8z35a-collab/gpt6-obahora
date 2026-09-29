@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
       return { R, hits, off };
     });
     console.log(v, JSON.stringify(ov));
-    await p.screenshot({ path: `/tmp/e_v_${v}_title.png` });
+    if (!process.env.NOSHOT) await p.screenshot({ path: `/tmp/e_v_${v}_title.png` });
     await p.evaluate(() => document.querySelector('#start-button').click()); await p.waitForTimeout(2500);
     const hud = await p.evaluate(() => {
       const sel = ['.objective', '#pause-button', '#game-message', '.hud-bottom', '#joystick-zone', '.touch-actions', '#touch-look-hint', '#desktop-hint', '#interaction-prompt'];
@@ -28,7 +28,7 @@ const { chromium } = require('playwright');
       return { R, hits };
     });
     console.log(v, 'HUD', JSON.stringify(hud));
-    await p.screenshot({ path: `/tmp/e_v_${v}_play.png` });
+    if (!process.env.NOSHOT) await p.screenshot({ path: `/tmp/e_v_${v}_play.png` });
     await ctx.close();
   }
   await b.close();
