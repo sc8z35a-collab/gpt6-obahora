@@ -190,7 +190,7 @@
 - 場所: css/style.css `#game-message{top:22%}`(max-height:650px)
 - 内容: 601x500 で game-message y=110〜148、objective 下端 y=111 と接触/重なり（`.objective x #game-message`）。E-003 の PC 版（DUP寄り、条件が異なるため別記）。
 
-### E-038 [重大度: Low] [種別: visual] 結果画面タイトルが字間 10px / 6px の「み つ け た。」で、元テキストに全角スペースを入れた上に letter-spacing も付与
+### E-038 [重大度: Low] [種別: visual] 結果画面タイトルが字間 10px / 6px の「み つ け た。」で、元テキストに半角スペース(U+0020)を入れた上に letter-spacing も付与
 - 場所: js/game.js:1181 `'み つ け た。'`, `'夜 が 明 け る。'` / css `#end-screen h2{letter-spacing:10px}`
 - 内容: 文字間にスペース文字＋letter-spacing の二重指定のため、スクリーンリーダーは「み、つ、け、た」と1字ずつ読み上げ、コピーすると空白入り文字列になる。視覚上も 320px 幅で「み つ け た。」がほぼ全幅（スクショ）。「夜 が 明 け る。」は 320px で折り返しの恐れ。
 - 修正案: 空白を削除し CSS の letter-spacing のみで表現。
@@ -223,5 +223,9 @@
 - 場所: index.html:61
 - 内容: 初めて遊ぶプレイヤーには「何の3倍か」が意味不明。旧版比の変更履歴（README の「探索面積は旧版の約3倍」）がそのままゲーム内説明に流用されている。
 
+### E-045 [重大度: Low] [種別: visual] 視点感度・音量スライダーに現在値の表示が無い
+- 場所: index.html:64 `#sensitivity-input`, `#volume-input`
+- 内容: range 入力のみで数値/パーセント表示・aria-valuetext が無い。音量0かどうか（E-031）も見た目で判別しにくい（スクショで確認、つまみ位置のみ）。
+
 ---
-**E 進捗メモ（リーダー向け）**: E は有効 43 件（E-022 は撤回）。C=6, D=7 と合わせてチーム計 56 件（A/B は未投稿の時点）。使用ツール: `bughunt/tools/shot_E.cjs`, `multi_E.cjs`（NOSHOT=1 でスクショ省略・高速）, `fail_E.cjs`, `probe_E1..9.cjs`。
+**E 進捗メモ（リーダー向け）**: E は有効 44 件（E-022 は撤回）。C=6, D=7 と合わせてチーム計 57 件（A/B は未投稿の時点）。使用ツール: `bughunt/tools/shot_E.cjs`, `multi_E.cjs`（NOSHOT=1 でスクショ省略・高速）, `fail_E.cjs`, `probe_E1..9.cjs`。
