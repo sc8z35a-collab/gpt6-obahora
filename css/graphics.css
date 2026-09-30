@@ -60,3 +60,12 @@
   .graphics-monitor { top: 73px; }
   .playing .graphics-monitor { top: 77px; }
 }
+/* E-023/E-024: keep the XHIGH monitor clear of the title and the touch look area */
+@media (max-width: 600px) {
+  .graphics-monitor { top: auto; bottom: 170px; right: 6%; width: 150px; }
+  .playing .graphics-monitor { top: 128px; bottom: auto; right: auto; left: 23px; width: 132px; }
+}
+@media (max-height: 480px) and (min-width: 601px) {
+  .graphics-monitor { top: 60px; }
+  .playing .graphics-monitor { top: 118px; right: auto; left: 35px; }
+}

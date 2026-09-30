@@ -12,10 +12,12 @@
   const isTouch = matchMedia('(pointer:coarse)').matches;
   const CELL = 2;
   const Core = window.KuchiieCore;
-  if (!Core) { $('loading-text').textContent = 'ゲームコードを読み込めませんでした。再読み込みしてください。'; return; }
+  if (!Core) { $('loading-text').textContent = 'ゲームコードを読み込めませんでした。再読み込みしてください。'; $('reload-button').classList.remove('hidden'); $('reload-button').onclick=()=>location.reload(); return; }
   let savedSettings = null;
   try { savedSettings = JSON.parse(localStorage.getItem('kuchiie-settings') || 'null'); } catch (_) {}
   const settings = Core.sanitizeSettings(savedSettings);
+  // Respect the OS motion preference until the player chooses otherwise.
+  if (!savedSettings && matchMedia('(prefers-reduced-motion: reduce)').matches) settings.reduced = true;
   // XHIGH always requires a fresh gesture after loading, preventing crash/reload loops.
   const restoreXhigh = settings.quality === 'xhigh';
   if (restoreXhigh || !['high', 'low'].includes(settings.quality)) settings.quality = 'high';
@@ -37,6 +39,7 @@
   const player = new T.Vector3(18, 1.62, 32.7);
   player.floor = 0; player.eyeHeight = 1.62;
   const exitPos = new T.Vector3(18, 0, 35.05);
+  const EAST_WING_X = 37; // world x where the east wing's first room column begins
   const scene = new T.Scene();
   scene.background = new T.Color(0x070c0b);
   scene.fog = new T.FogExp2(0x0a1010, .043);
@@ -47,7 +50,7 @@
   try {
     renderer = new T.WebGLRenderer({ antialias: !isTouch, powerPreference: 'high-performance', alpha: false });
   } catch (_) {
-    $('loading-text').textContent = 'この端末ではWebGLを開始できません。Safari / Chromeの最新版でお試しください。';
+    $('loading-text').textContent = 'この端末ではWebGLを開始できません。ブラウザのハードウェアアクセラレーション設定を有効にするか、Safari / Chromeの最新版でお試しください。';
     $('reload-button').classList.remove('hidden'); $('reload-button').onclick=()=>location.reload();
     return;
   }
@@ -1046,9 +1049,11 @@
     }
   }
   function updateSound(){
+    if(soundOn && settings.volume<=0){settings.volume=.6;$('volume-input').value=settings.volume;$('volume-value').textContent='60%';saveSettings();}
     if(master)master.gain.setTargetAtTime(soundOn?settings.volume:0,audioCtx.currentTime,.15);
     if (audioCtx && !soundOn && audioCtx.state === 'running') audioCtx.suspend().catch(() => {});
     $('sound-label').textContent=soundOn?'SOUND ON':'SOUND OFF';
+    $('pause-sound-button').textContent=soundOn?'サウンド: ON':'サウンド: OFF';$('pause-sound-button').setAttribute('aria-pressed',String(soundOn));
     $('sound-button').setAttribute('aria-label',soundOn?'サウンドをオフにする':'サウンドをオンにする');
     $('sound-button').querySelector('path').setAttribute('d',soundOn?'M11 5 6 9H3v6h3l5 4V5Zm5 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14':'M11 5 6 9H3v6h3l5 4V5Zm5 4 5 6m0-6-5 6');
   }
@@ -1093,7 +1098,7 @@
   }
   function updateHud() {
     refreshInteraction();
-    const location = navigation.onStairs(player) ? '階段 / 1F ↔ 2F' : player.floor === 1 ? '2F / 東棟' : player.x > 36 ? '1F / 東棟' : '1F / 本館';
+    const location = navigation.onStairs(player) ? '階段 / 1F ↔ 2F' : player.floor === 1 ? '2F / 東棟' : player.x > EAST_WING_X ? '1F / 東棟' : '1F / 本館';
     const floorLabel = $('game-hud').querySelector('.objective .hud-eyebrow');
     if(floorLabel.textContent !== location) floorLabel.textContent = location;
     const prompt = $('interaction-prompt');
@@ -1105,7 +1110,7 @@
     const border = targetItem ? '#e1c994' : '#c1c7a84d';
     if ($('interact-button').dataset.target !== border) { $('interact-button').style.borderColor = border; $('interact-button').dataset.target = border; }
     const width = `${Math.round(stamina)}%`;
-    if ($('stamina-fill').style.width !== width) $('stamina-fill').style.width = width;
+    if ($('stamina-fill').style.width !== width) { $('stamina-fill').style.width = width; $('stamina-track').setAttribute('aria-valuenow', String(Math.round(stamina))); }
     $('stamina-fill').style.background = stamina < 25 ? '#b66044' : '#c2c6a7';
     const clock = formatTime(elapsed);
     if ($('elapsed-time').textContent !== clock) $('elapsed-time').textContent = clock;
@@ -1143,11 +1148,11 @@
     granny.root.position.set(18,0,6);granny.root.position.floor=0;granny.root.rotation.set(0,0,0);
     items.forEach(i=>{i.collected=false;i.group.visible=true;});exitSeals.forEach(s=>s.visible=true);updateObjective();viewRig.visible=true;
     $('danger-vignette').style.opacity=0;$('flash').style.opacity=0;$('touch-look-hint').style.opacity=1;
-    if(!soundPreferenceTouched)soundOn=true;
-    ensureAudio();pointerLock();showMessage('本館・東棟・2階の護符を集め、玄関へ戻れ。階段は東棟の南側。',8);updateHud();
+    if(!soundPreferenceTouched)soundOn=settings.volume>0;
+    syncInert();focusQuietly($('pause-button'));ensureAudio();pointerLock();showMessage('本館・東棟・2階の護符を集め、玄関へ戻れ。階段は東棟の南側。',8);updateHud();
   }
   function updateObjective(){
-    $('key-count').textContent=`${collected} / 3`;
+    $('key-count').textContent=`${collected} / 3`;$('talisman-count').setAttribute('aria-label',`護符 ${collected} / 3`);
     for(let i=1;i<=3;i++)$('key-'+i).classList.toggle('collected',i<=collected);
     $('objective-text').textContent=collected===3?'玄関へ戻り、脱出する':'3つの護符を探す';
     exitGlow.color.setHex(collected===3?0xaed4b1:0xffc585);exitGlow.intensity=collected===3?18:10;
@@ -1174,13 +1179,14 @@
     state = 'playing'; closeModal('pause-modal'); resetInput();
     accumulator = 0; previousTime = performance.now(); invalidateScene(); ensureAudio(); pointerLock();
   }
-  function goHome(){state='intro';modalDepth=0;targetItem=null;accumulator=0;invalidateScene();resetInput();unlock();viewRig.visible=false;document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden'));$('end-screen').classList.add('hidden');$('game-hud').classList.add('hidden');$('landing').classList.remove('hidden');document.body.classList.remove('playing');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;items.forEach(i=>i.group.visible=true);exitSeals.forEach(s=>s.visible=true);granny.root.position.set(18.6,0,25.6);granny.root.position.floor=0;exitGlow.color.setHex(0xffc585);exitGlow.intensity=10;modalFocus.clear();}
+  function goHome(){state='intro';modalDepth=0;targetItem=null;accumulator=0;invalidateScene();resetInput();unlock();viewRig.visible=false;document.querySelectorAll('.modal-layer').forEach(m=>m.classList.add('hidden'));$('end-screen').classList.add('hidden');$('game-hud').classList.add('hidden');$('landing').classList.remove('hidden');document.body.classList.remove('playing');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;items.forEach(i=>i.group.visible=true);exitSeals.forEach(s=>s.visible=true);granny.root.position.set(18.6,0,25.6);granny.root.position.floor=0;exitGlow.color.setHex(0xffc585);exitGlow.intensity=10;modalFocus.clear();messageUntil=0;$('game-message').classList.remove('visible');$('game-message').textContent='';$('interaction-prompt').classList.add('hidden');syncInert();focusQuietly($('start-button'));}
   function endGame(won){
     state=won?'escaped':'dead';invalidateScene();unlock();resetInput();viewRig.visible=false;$('game-hud').classList.add('hidden');$('danger-vignette').style.opacity=0;$('flash').style.opacity=0;
     $('end-screen').classList.remove('hidden');$('end-screen').classList.toggle('escaped',won);
-    $('end-eyebrow').textContent=won?'YOU LEFT THE HOUSE. DID SHE?':'SHE FOUND YOU';$('end-title').textContent=won?'夜 が 明 け る。':'み つ け た。';
+    $('end-eyebrow').textContent=won?'YOU LEFT THE HOUSE. DID SHE?':'SHE FOUND YOU';$('end-title').textContent=won?'夜が明ける。':'みつけた。';
     $('end-description').textContent=won?'外に出た。それなのに、足音はまだ聞こえる。':'もう、どこにも行かせない。';
     $('end-stats').textContent=`${won?'脱出時間':'生存時間'} ${formatTime(elapsed)}  /  護符 ${collected} / 3`;
+    messageUntil=0;$('game-message').classList.remove('visible');syncInert();focusQuietly($('end-title'));
     if(won)tone(220,2,.1,'sine',330);
   }
   function catchPlayer(){
@@ -1202,7 +1208,7 @@
     stamina = staminaStep.value; exhausted = staminaStep.exhausted;
     const sprint = staminaStep.sprint, speed = sprint ? 4.15 : 2.55;
     if(moving){moveEntity(player,(-Math.sin(yaw)*forward+Math.cos(yaw)*strafe)*speed*dt,(-Math.cos(yaw)*forward-Math.sin(yaw)*strafe)*speed*dt);walkPhase+=dt*(sprint?12:8);if(elapsed-lastFoot>(sprint?.29:.48)){footstep();lastFoot=elapsed;}}
-    const area = player.floor===1 ? 'upper' : player.x>37 ? 'east' : 'main';
+    const area = player.floor===1 ? 'upper' : player.x>EAST_WING_X ? 'east' : 'main';
     if(!visitedAreas.has(area)) {
       visitedAreas.add(area);
       showMessage(area==='upper'?'二階 ― 忘れられた部屋。奥座敷から、気配がする。':'東棟 ― 階段は南側。上からも、足音が聞こえる。',5);
@@ -1228,7 +1234,10 @@
       }
       pathClock = .3;
     }
-    const target = enemyHasSight ? player : path[0];
+    // In the player's own cell BFS has no waypoint left; step straight in so wall-hugging
+    // corners are never a permanent safe spot.
+    const sameCell = !path.length && navigation.cellId(granny.root.position) === navigation.cellId(player);
+    const target = enemyHasSight || sameCell ? player : path[0];
     let enemyMoving=false;
     if(chaseTime>4&&target){
       const dx=target.x-granny.root.position.x,dz=target.z-granny.root.position.z,d=Math.hypot(dx,dz);
@@ -1340,7 +1349,7 @@
       const stats = graphics.getStats();
       $('graphics-fps').textContent = frozen ? 'PAUSED' : stats.fps !== null ? `${stats.fps} FPS` : '計測中';
       $('graphics-resolution').textContent = `${stats.width} × ${stats.height} · ${stats.hdr ? 'HDR' : 'LDR'} · ${stats.msaa}× MSAA`;
-      if (!frozen && stats.fps !== null && stats.fps < 18) { if (!lowFpsSince) lowFpsSince = now; }
+      if (!frozen && state === 'playing' && stats.fps !== null && stats.fps < 18) { if (!lowFpsSince) lowFpsSince = now; }
       else lowFpsSince = 0;
       const slow = lowFpsSince > 0 && now - lowFpsSince > 5000;
       $('graphics-performance-note').classList.toggle('hidden', !slow);
@@ -1357,25 +1366,46 @@
   $('home-button').addEventListener('click',goHome);$('end-home-button').addEventListener('click',goHome);
   $('pause-button').addEventListener('click',pauseGame);$('resume-button').addEventListener('click',resumeGame);
   const modalFocus = new Map();
+  // Only the top-most layer is operable; everything behind it is inert for keyboard and AT.
+  const LAYERS = ['site-header','landing','game-hud','end-screen','graphics-monitor','howto-modal','pause-modal','settings-modal'];
+  function syncInert(){
+    const open = ['settings-modal','pause-modal','howto-modal'].find(id => !$(id).classList.contains('hidden'));
+    for (const id of LAYERS) { const el = $(id); if (!el) continue; const off = !!open && id !== open; el.inert = off; if (off) el.setAttribute('aria-hidden','true'); else el.removeAttribute('aria-hidden'); }
+  }
+  // Programmatic focus keeps keyboard/AT context without drawing a ring after pointer input.
+  let lastInputWasKey = false;
+  document.addEventListener('keydown', () => { lastInputWasKey = true; }, true);
+  document.addEventListener('pointerdown', () => { lastInputWasKey = false; }, true);
+  function focusQuietly(el){
+    if(!el) return;
+    el.classList.toggle('quiet-focus', !lastInputWasKey);
+    try { el.focus({ preventScroll: true, focusVisible: lastInputWasKey }); } catch (_) { el.focus(); }
+    el.addEventListener('blur', () => el.classList.remove('quiet-focus'), { once: true });
+  }
   function openModal(id) {
     if (state === 'playing' && id !== 'pause-modal') pauseGame();
     if (!$(id).classList.contains('hidden')) return;
-    modalFocus.set(id, document.activeElement);
-    $(id).classList.remove('hidden'); modalDepth++;
-    const focus = $(id).querySelector('button'); if (focus) focus.focus();
+    modalFocus.set(id, document.activeElement && document.activeElement !== document.body ? document.activeElement : null);
+    $(id).classList.remove('hidden'); modalDepth++; syncInert();
+    const focus = $(id).querySelector('h2'); if (focus) { focus.tabIndex = -1; focusQuietly(focus); }
   }
   function closeModal(id) {
     if ($(id).classList.contains('hidden')) return;
-    $(id).classList.add('hidden'); modalDepth = Math.max(0, modalDepth - 1);
+    $(id).classList.add('hidden'); modalDepth = Math.max(0, modalDepth - 1); syncInert();
+    if (id === 'settings-modal') resetXhighPanel();
     const focus = modalFocus.get(id); modalFocus.delete(id);
-    if (focus && focus.isConnected && focus.getClientRects().length) focus.focus();
+    if (focus && focus.isConnected && focus !== document.body && focus.getClientRects().length) focusQuietly(focus);
+    else if (id === 'settings-modal' && !$('pause-modal').classList.contains('hidden')) focusQuietly($('pause-settings-button'));
+    else if (state === 'playing') focusQuietly($('pause-button'));
+    else if (state === 'intro') focusQuietly($(id === 'howto-modal' ? 'howto-button' : 'settings-button'));
   }
   $('howto-button').addEventListener('click',()=>openModal('howto-modal'));
   $('settings-button').addEventListener('click',()=>openModal('settings-modal'));
   $('pause-settings-button').addEventListener('click',()=>openModal('settings-modal'));
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.dataset.close)));
   document.querySelectorAll('.modal-layer').forEach(m=>m.addEventListener('click',e=>{if(e.target===m&&m.id!=='pause-modal')closeModal(m.id);}));
-  $('sound-button').addEventListener('click',()=>{soundPreferenceTouched=true;soundOn=!soundOn;ensureAudio();updateSound();});
+  const toggleSound=()=>{soundPreferenceTouched=true;soundOn=!soundOn;ensureAudio();updateSound();};
+  $('sound-button').addEventListener('click',toggleSound);$('pause-sound-button').addEventListener('click',toggleSound);
   function saveSettings(){try{localStorage.setItem('kuchiie-settings',JSON.stringify(settings));}catch(_) {}}
   function applyQuality() {
     if (contextLost) return;
@@ -1385,7 +1415,7 @@
       renderer.shadowMap.enabled = true;
       if (!graphics || !graphics.enable()) {
         settings.quality = 'high'; extreme = false;
-        $('quality-guidance').textContent = 'この環境ではXHIGHを開始できません。WebGL 2対応ブラウザでお試しください。';
+        $('quality-guidance').textContent = !graphics ? 'XHIGH描画モジュールを読み込めませんでした。通信を確認して再読み込みしてください。' : 'この環境ではXHIGHを開始できません。WebGL 2対応ブラウザでお試しください。';
       }
     }
     if (!extreme) {
@@ -1418,6 +1448,10 @@
   }
   $('quality-select').value=settings.quality;$('sensitivity-input').value=settings.sensitivity;$('volume-input').value=settings.volume;$('reduce-effects').checked=settings.reduced;applyQuality();
   if (restoreXhigh) $('quality-guidance').textContent = '前回はXHIGHでした。安全のため高画質で起動しています。XHIGHを再選択すると有効化できます。';
+  function resetXhighPanel() {
+    // An unconfirmed XHIGH request is discarded when settings close.
+    if (settings.quality !== 'xhigh') { $('xhigh-panel').classList.add('hidden'); $('xhigh-consent').classList.add('hidden'); $('quality-select').value = settings.quality; }
+  }
   $('quality-select').addEventListener('change', e => {
     if (e.target.value === 'xhigh' && settings.quality !== 'xhigh') {
       e.target.value = settings.quality;
@@ -1442,8 +1476,10 @@
   });
   let settingsTimer = 0;
   const deferSettingsSave = () => { clearTimeout(settingsTimer); settingsTimer = setTimeout(saveSettings, 200); };
-  $('sensitivity-input').addEventListener('input',e=>{settings.sensitivity=Number(e.target.value);deferSettingsSave();});
-  $('volume-input').addEventListener('input',e=>{settings.volume=Number(e.target.value);soundPreferenceTouched=true;soundOn=settings.volume>0;ensureAudio();deferSettingsSave();});
+  const showSliderValues = () => { $('sensitivity-value').textContent = `${settings.sensitivity.toFixed(1)}×`; $('volume-value').textContent = `${Math.round(settings.volume * 100)}%`; $('volume-input').setAttribute('aria-valuetext', `${Math.round(settings.volume * 100)}%`); };
+  showSliderValues();
+  $('sensitivity-input').addEventListener('input',e=>{settings.sensitivity=Number(e.target.value);showSliderValues();deferSettingsSave();});
+  $('volume-input').addEventListener('input',e=>{settings.volume=Number(e.target.value);soundPreferenceTouched=true;soundOn=settings.volume>0;showSliderValues();ensureAudio();deferSettingsSave();});
   $('sensitivity-input').addEventListener('change', saveSettings);
   $('volume-input').addEventListener('change', saveSettings);
   $('reduce-effects').addEventListener('change',e=>{
@@ -1524,7 +1560,7 @@
     e.preventDefault(); contextLost = true; settings.quality = 'high'; saveSettings();
     resetInput(); if (state === 'playing') pauseGame();
     if (audioCtx) audioCtx.suspend().catch(() => {});
-    $('loading').classList.remove('hidden'); $('loading').style.opacity = 1;
+    $('loading').style.transition = 'none'; $('loading').classList.remove('hidden'); $('loading').style.opacity = 1;
     $('loading-text').textContent = '描画が中断されました。高画質に戻して再読み込みしてください。';
     $('reload-button').classList.remove('hidden');
   });

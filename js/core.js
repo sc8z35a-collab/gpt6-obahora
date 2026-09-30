@@ -196,7 +196,16 @@
       if (this.level(from) !== this.level(to)) return false;
       // Stairwell geometry blocks direct shortcuts; follow the connected route instead.
       if (this.onStairs(from) !== this.onStairs(to)) return false;
-      return this.layers[this.level(from)]?.clearSight(from, to, radius) || false;
+      const floor = this.level(from);
+      if (!this.layers[floor]) return false;
+      // Sample through HouseNavigation.canStand so the stair/landing seam is not a blind spot.
+      const dx = to.x - from.x, dz = to.z - from.z;
+      const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / (this.cell * .1)));
+      if (steps > 4096) return false;
+      for (let i = 0; i <= steps; i++) {
+        if (!this.canStand(from.x + dx * i / steps, from.z + dz * i / steps, radius, floor)) return false;
+      }
+      return true;
     }
     findPath(from, to, radius = .25) {
       this.searches++;
