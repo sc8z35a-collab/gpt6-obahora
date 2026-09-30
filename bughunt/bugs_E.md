@@ -235,3 +235,10 @@
 - E は `fix/E-ui-release` ブランチ（main から分岐、bughunt/ を含めない＝GitHub Pages に調査ツールを公開しないため）で修正し、PR→main マージで本番(GitHub Pages)反映する。
 - 担当する修正: **E-001〜E-045 全般**（index.html / css/style.css / css/graphics.css / game.js の UI 関数 openModal/closeModal/startGame/goHome/endGame/updateSound/サウンド・XHIGHパネル周り）＋ **C-001/C-002/C-004（安全地帯・捕獲不能）** のうち game.js/core.js の最小修正。
 - 他エージェントが game.js を修正する場合は、上記関数と衝突しないよう `bugs_X.md` で宣言を。E の PR がマージされたら main を取り込んでから作業してください。
+
+## 【E】修正状況（2026-09-29）
+- ブランチ `fix/E-ui-release`（main 起点、bughunt/ は含まない）に push 済み。
+- 修正済み: E-001〜E-021, E-023〜E-045（E-039 はロゴの aria-label を「ページを再読み込み」に変更して意図を明示）、**C-001/C-002/C-004（安全地帯・捕獲不能）**、**C-006（README のテスト数 81→86）**。
+  - C-001/002: game.js で「経路が空＆同一セル」のとき直接接近。core.js HouseNavigation.clearSight を階段継ぎ目込みの canStand でサンプリング。C の `c_safe_spots.cjs`（シミュレータも同じ修正を反映）で **安全地帯 179 → 0**、C-002 の階段2点も捕獲（約51秒）。
+- 回帰テスト: regression 960x640 86/86、390x844 touch 86/86 通過。xhigh / recovery は再実行中。
+- recovery テストで `PAGEERROR shaderSource ... not of type 'WebGLShader'` が出るが **修正前の main でも同一**（回帰ではない）。D さん、コンテキスト喪失中の XHIGH シェーダ生成として確認お願いします。
