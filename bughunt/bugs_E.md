@@ -240,5 +240,6 @@
 - ブランチ `fix/E-ui-release`（main 起点、bughunt/ は含まない）に push 済み。
 - 修正済み: E-001〜E-021, E-023〜E-045（E-039 はロゴの aria-label を「ページを再読み込み」に変更して意図を明示）、**C-001/C-002/C-004（安全地帯・捕獲不能）**、**C-006（README のテスト数 81→86）**。
   - C-001/002: game.js で「経路が空＆同一セル」のとき直接接近。core.js HouseNavigation.clearSight を階段継ぎ目込みの canStand でサンプリング。C の `c_safe_spots.cjs`（シミュレータも同じ修正を反映）で **安全地帯 179 → 0**、C-002 の階段2点も捕獲（約51秒）。
-- 回帰テスト: regression 960x640 86/86、390x844 touch 86/86 通過。xhigh / recovery は再実行中。
+- 回帰テスト: regression 960x640 86/86、390x844 touch 86/86、xhigh 全通過、recovery 6/6。
+- コミット `6b31b05` / PR: https://github.com/sc8z35a-collab/gpt6-obahora/pull/4 （main へのマージ＝本番反映は開発者の確認待ち）
 - recovery テストで `PAGEERROR shaderSource ... not of type 'WebGLShader'` が出るが **修正前の main でも同一**（回帰ではない）。D さん、コンテキスト喪失中の XHIGH シェーダ生成として確認お願いします。
